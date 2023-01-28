@@ -1,0 +1,44 @@
+[package]
+name = "connect-four-server"
+description = "Play connect four remotely."
+version = "1.0.0"
+edition = "2021"
+authors = ["Grzegorz Łubian"]
+publish = false
+
+[dependencies]
+# https & wss server
+actix = "0.13"
+actix-web = { version = "4.2", features = ["openssl"] }
+actix-web-actors = "4.1"
+actix-files = "0.6"
+url = { version = "2.3.1", features=["serde"] }
+qstring = "0.7"
+openssl = { version = "0.10", features = ["v110"] }
+tokio = "1.23"
+
+# serde
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_repr = "0.1"
+toml = "0.6.0"
+
+# logging
+env_logger = "0.10"
+log = "0.4"
+
+# invite creation
+uuid = { version = "1.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
+image = "0.23"
+base64 = "0.20.0"
+qrcode = "0.12.0"
+
+# cli
+pico-args = { version = "0.5.0", features = [
+  "eq-separator",
+  "short-space-opt",
+  "combined-flags",
+] }
+
+# misc
+rand = "0.8.5"
