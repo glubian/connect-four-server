@@ -46,7 +46,7 @@ RUST_LOG=connect_four_server=debug cargo run --bin server
 `RUST_LOG` controls logging, see the [log](https://docs.rs/log/latest/log/)
 crate for more info.
 
-By default, the server is serving files from `./static`
+By default, the files are served from `./static`
 at `https://localhost:8080`.
 
 ### Run a production build
@@ -77,21 +77,26 @@ The code is in `src/bin/cli.rs`.
 
 # Configuring
 
-By default, the server should work for development:
+## Default settings
 
-- Hosts contents of `./static` directory at `https://localhost:8080` and accepts
-  WebSocket connections at `wss://localhost:8080/ws`
-- localhost does not require HTTPS, so it works with Vue development server,
-  usually hosted at `http://localhost:3333`
+By default, the server should work well for development purposes:
+
+- Hosts files from `./static` directory at `https://localhost:8080`
+- Accepts WebSocket connections at `wss://localhost:8080/ws`
 - Looks for private key file under `./certs/key.pem`
 - Looks for certificate chain file under `./certs/cert.pem`
 - Hosts up to 100 concurrent lobbies, each can hold up to 20 players
+
+It works well with Vue development server, usually hosted at
+`http://localhost:3333`.
+
+## Working with CLI
 
 If you are comfortable with CLI and know how cargo works, 
 `--print-config` and `--help` should get you started right away. Otherwise
 the rest of this section will guide you through the configuration.
 
-## Passing flags with cargo
+### Passing flags with cargo
 
 For brevity, I will use `./server` to start the server. To pass arguments using
 cargo, replace it with:
@@ -113,7 +118,7 @@ passes the same arguments to the server as
 ./server --help
 ```
 
-## The default configuration
+### Saving and loading configurations
 
 To print the default config file, run:
 
@@ -122,19 +127,22 @@ To print the default config file, run:
 ```
 
 The config written is in [TOML](https://github.com/toml-lang/toml). 
+`--print-config` always prints all existing settings regardless of whether
+they were modified.
+
 It can be saved to a file using:
 
 ```sh
 ./server --print-config > config.toml
 ```
 
-Now we can apply settings from `config.toml` using:
+The settings can be loaded from `config.toml` with:
 
 ```sh
 ./server --config config.toml
 ```
 
-You can modify the configuration by hand, or using command line options:
+You can modify the configuration by hand, or through command line:
 
 ```sh
 ./server --config config.toml -a 192.168.0.1 -s 443 --print-config > config.toml
@@ -142,10 +150,10 @@ You can modify the configuration by hand, or using command line options:
 
 This command:
 
-1. Reads all settings from `config.toml`
+1. Reads settings from `config.toml`
 2. Sets the address to `192.168.0.1`
 3. Sets the port to `443`
-4. Writes all changes to `config.toml`
+4. Writes a new `config.toml`, containing all settings
 
 Any options you set will override those read from the config.
 See `--help` for the list of all options.
