@@ -32,6 +32,7 @@ pub enum Player {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GameState {
     pub player: Player,
     pub turn: u32,
