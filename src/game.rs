@@ -1,3 +1,5 @@
+use std::{error::Error, fmt};
+
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -63,6 +65,27 @@ pub enum EndTurnError {
     ColumnFilled,
 }
 
+/// Something went wrong in `Game::from_raw_data()`
+#[derive(Debug)]
+pub enum GameValidationError {
+    /// The difference between the amount of chips of the two players
+    /// is more than 1
+    ChipCount,
+    /// A chip defies gravity
+    Gravity,
+}
+
+impl fmt::Display for GameValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ChipCount => write!(f, "Chip count invalid"),
+            Self::Gravity => write!(f, "Failed gravity check"),
+        }
+    }
+}
+
+impl Error for GameValidationError {}
+
 fn is_tile_count_valid(starting_player: Player, p1: u32, p2: u32) -> bool {
     match starting_player {
         _ if p1 == p2 => true,
@@ -71,14 +94,17 @@ fn is_tile_count_valid(starting_player: Player, p1: u32, p2: u32) -> bool {
     }
 }
 
-fn get_turn_and_validate(field: &GameField, starting_player: Player) -> Result<u32, ()> {
+fn get_turn_and_validate(
+    field: &GameField,
+    starting_player: Player,
+) -> Result<u32, GameValidationError> {
     let mut p1 = 0;
     let mut p2 = 0;
 
-    for x in 0..FIELD_SIZE {
+    for col in field {
         let mut found = false;
-        for y in 0..FIELD_SIZE {
-            match field[x][y] {
+        for slot in col {
+            match slot {
                 Some(p) => {
                     found = true;
                     match p {
@@ -88,7 +114,7 @@ fn get_turn_and_validate(field: &GameField, starting_player: Player) -> Result<u
                 }
                 None => {
                     if found {
-                        return Err(());
+                        return Err(GameValidationError::Gravity);
                     }
                 }
             }
@@ -98,7 +124,7 @@ fn get_turn_and_validate(field: &GameField, starting_player: Player) -> Result<u
     if is_tile_count_valid(starting_player, p1, p2) {
         Ok(p1 + p2)
     } else {
-        Err(())
+        Err(GameValidationError::ChipCount)
     }
 }
 
@@ -121,7 +147,7 @@ fn get_horizontal_and_vertical_matches(matches: &mut Vec<GameMatch>, field: &Gam
                     matches.push(((i, j - v_len), (i, j - 1)));
                 }
                 v_last_player = v_player;
-                v_len = if v_player.is_some() { 1 } else { 0 };
+                v_len = v_player.is_some().into();
             }
 
             if h_player == h_last_player && h_player.is_some() {
@@ -131,7 +157,7 @@ fn get_horizontal_and_vertical_matches(matches: &mut Vec<GameMatch>, field: &Gam
                     matches.push(((j - h_len, i), (j - 1, i)));
                 }
                 h_last_player = h_player;
-                h_len = if h_player.is_some() { 1 } else { 0 };
+                h_len = h_player.is_some().into();
             }
         }
 
@@ -173,7 +199,7 @@ fn get_diagonal_matches(matches: &mut Vec<GameMatch>, field: &GameField) {
                     matches.push(((x1, y1), (x2, y2)));
                 }
                 last_p1 = p1;
-                len1 = if p1.is_some() { 1 } else { 0 };
+                len1 = p1.is_some().into();
             }
 
             if p2 == last_p2 && p2.is_some() {
@@ -187,7 +213,7 @@ fn get_diagonal_matches(matches: &mut Vec<GameMatch>, field: &GameField) {
                     matches.push(((x1, y1), (x2, y2)));
                 }
                 last_p2 = p2;
-                len2 = if p2.is_some() { 1 } else { 0 };
+                len2 = p2.is_some().into();
             }
         }
 
@@ -215,10 +241,10 @@ fn get_result(field: &GameField, turn: u32) -> Option<GameResult> {
     get_horizontal_and_vertical_matches(&mut matches, field);
     get_diagonal_matches(&mut matches, field);
 
-    if matches.len() > 0 {
+    if !matches.is_empty() {
         let winner = matches
             .iter()
-            .cloned()
+            .copied()
             .fold((false, false), |(p1, p2), ((x, y), _)| match field[x][y] {
                 Some(Player::P1) => (true, p2),
                 Some(Player::P2) => (p1, true),
@@ -246,18 +272,19 @@ fn get_result(field: &GameField, turn: u32) -> Option<GameResult> {
 }
 
 impl Game {
-    pub fn from_raw_data(rules: GameRules, field: GameField) -> Result<Self, ()> {
+    pub fn from_raw_data(rules: GameRules, field: GameField) -> Result<Self, GameValidationError> {
         let turn = get_turn_and_validate(&field, rules.starting_player)?;
         let mut state = GameState::fast_forward(rules.starting_player, turn);
         state.result = get_result(&field, state.turn);
 
         Ok(Self {
             field,
-            rules,
             state,
+            rules,
         })
     }
 
+    #[must_use]
     pub const fn new(rules: GameRules) -> Self {
         Self {
             field: EMPTY_FIELD,
@@ -406,14 +433,17 @@ impl Game {
             || self.len_diagonal_tr_bl(x, y, player) >= WIN_LEN
     }
 
+    #[must_use]
     pub fn field(&self) -> &GameField {
         &self.field
     }
 
+    #[must_use]
     pub fn rules(&self) -> &GameRules {
         &self.rules
     }
 
+    #[must_use]
     pub fn state(&self) -> &GameState {
         &self.state
     }
@@ -448,6 +478,7 @@ impl GameState {
 }
 
 impl Player {
+    #[must_use]
     pub const fn other(&self) -> Self {
         match self {
             Self::P1 => Self::P2,
@@ -650,8 +681,10 @@ mod tests {
 
     #[test]
     fn rule_allow_draws() {
-        let mut rules = GameRules::default();
-        rules.allow_draws = true;
+        let rules = GameRules {
+            allow_draws: true,
+            ..GameRules::default()
+        };
 
         let (game, res) = drawn_game(rules);
         assert!(res.is_ok());

@@ -34,6 +34,17 @@ pub struct AppArgs {
 
 impl AppArgs {
     pub fn from_env() -> Result<Self, pico_args::Error> {
+        #[inline]
+        fn exit_on_err<T>(res: Result<T, pico_args::Error>) -> T {
+            match res {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+
         let mut pargs = pico_args::Arguments::from_env();
 
         if pargs.contains(["-h", "--help"]) {
@@ -44,17 +55,6 @@ impl AppArgs {
         if pargs.contains(["-v", "--version"]) {
             println!("{VERSION}");
             std::process::exit(0);
-        }
-
-        #[inline]
-        fn exit_on_err<T>(res: Result<T, pico_args::Error>) -> T {
-            match res {
-                Ok(r) => r,
-                Err(e) => {
-                    eprintln!("{e}");
-                    std::process::exit(1);
-                }
-            }
         }
 
         let heartbeat_interval: Option<f64> =
@@ -83,18 +83,18 @@ impl AppArgs {
         };
 
         let extra_args = pargs.finish();
-        if extra_args.len() > 0 {
+        if !extra_args.is_empty() {
             let plural = if extra_args.len() == 1 { "" } else { "s" };
             let mut arg_list = String::new();
 
             for arg in extra_args {
-                if arg_list.len() > 0 {
+                if !arg_list.is_empty() {
                     arg_list.push_str(", ");
                 }
                 arg_list.push_str(&arg.to_string_lossy());
             }
 
-            eprintln!("Unknown argument{}: {}", plural, arg_list);
+            eprintln!("Unknown argument{plural}: {arg_list}");
             std::process::exit(1);
         }
 

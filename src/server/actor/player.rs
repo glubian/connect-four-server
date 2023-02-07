@@ -149,6 +149,7 @@ impl Player {
         });
     }
 
+    #[must_use]
     pub fn new(app_config: Arc<AppConfig>) -> Self {
         Self {
             hb: Instant::now(),
@@ -168,6 +169,8 @@ impl Actor for Player {
     }
 
     fn stopped(&mut self, ctx: &mut Self::Context) {
+        use Either::*;
+
         if self.disconnected_by_controller {
             debug!("Shut down by controller");
             return;
@@ -175,7 +178,6 @@ impl Actor for Player {
 
         let weak_addr = ctx.address().downgrade();
 
-        use Either::*;
         match &self.controller {
             Some(Left(lobby)) => lobby.do_send(Disconnected(weak_addr)),
             Some(Right(game)) => game.do_send(Disconnected(weak_addr)),
@@ -192,7 +194,7 @@ impl Actor for Player {
 impl Handler<AttachController> for Player {
     type Result = ();
 
-    fn handle(&mut self, msg: AttachController, _: &mut Self::Context) -> () {
+    fn handle(&mut self, msg: AttachController, _: &mut Self::Context) {
         self.controller = Some(msg.0);
         debug!("Controller attached");
     }
@@ -235,7 +237,7 @@ impl QR {
 impl Handler<LobbyLink> for Player {
     type Result = ();
 
-    fn handle(&mut self, msg: LobbyLink, ctx: &mut Self::Context) -> () {
+    fn handle(&mut self, msg: LobbyLink, ctx: &mut Self::Context) {
         let mut buf = Uuid::encode_buffer();
         let lobby_id = msg.0.hyphenated().encode_lower(&mut buf);
 
@@ -273,7 +275,7 @@ impl Handler<LobbySync> for Player {
 impl Handler<LobbyCode> for Player {
     type Result = ();
 
-    fn handle(&mut self, msg: LobbyCode, ctx: &mut Self::Context) -> () {
+    fn handle(&mut self, msg: LobbyCode, ctx: &mut Self::Context) {
         let Ok(msg) = serde_json::to_string(&OutgoingMessage::LobbyCode { code: msg.0 }) else {
             error!("Failed to convert lobby code message");
             return;
@@ -287,7 +289,7 @@ impl Handler<LobbyCode> for Player {
 impl Handler<GameRole> for Player {
     type Result = ();
 
-    fn handle(&mut self, msg: GameRole, ctx: &mut Self::Context) -> () {
+    fn handle(&mut self, msg: GameRole, ctx: &mut Self::Context) {
         let Ok(msg) = serde_json::to_string(&OutgoingMessage::GameRole { role: msg.0 }) else {
             error!("Failed to convert game role message");
             return;
@@ -316,16 +318,14 @@ impl Handler<GameSync> for Player {
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Player {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        let msg = match msg {
-            Ok(msg) => msg,
-            Err(_) => {
-                error!("WebSocket protocol error");
-                ctx.stop();
-                return;
-            }
+        use Either::*;
+
+        let Ok(msg) = msg else {
+            error!("WebSocket protocol error");
+            ctx.stop();
+            return;
         };
 
-        use Either::*;
         match msg {
             ws::Message::Ping(msg) => ctx.pong(&msg),
             ws::Message::Pong(_) => self.hb = Instant::now(),
@@ -358,10 +358,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Player {
                     debug!("Received IncomingMessage::GameRestart");
                     game.try_send(Restart).unwrap();
                 }
-                Err(_) => {
-                    debug!("Failed to parse message");
-                    return;
-                }
+                Err(_) => debug!("Failed to parse message"),
             },
             ws::Message::Binary(_) => (),
             ws::Message::Close(reason) => {

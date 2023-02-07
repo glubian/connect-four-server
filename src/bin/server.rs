@@ -1,3 +1,7 @@
+#![warn(clippy::all, clippy::pedantic)]
+#![allow(clippy::similar_names)] // allow the usage of `req` and `res`
+#![allow(clippy::unused_async)]
+
 use std::{
     fmt, io,
     process::{self, ExitCode},
@@ -81,10 +85,10 @@ async fn main_actix(cfg: AppConfig) -> Result<(), ServerError> {
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
         .set_private_key_file(&cfg.private_key_file, SslFiletype::PEM)
-        .map_err(|e| ServerError::OpenSsl(e))?;
+        .map_err(ServerError::OpenSsl)?;
     builder
         .set_certificate_chain_file(&cfg.certificate_chain_file)
-        .map_err(|e| ServerError::OpenSsl(e))?;
+        .map_err(ServerError::OpenSsl)?;
 
     let lobby_router = actor::LobbyRouter::new(Data::clone(&cfg).into_inner()).start();
     let cfg_1 = Data::clone(&cfg);
@@ -101,11 +105,11 @@ async fn main_actix(cfg: AppConfig) -> Result<(), ServerError> {
         app.service(Files::new("/", &cfg_1.serve_from).prefer_utf8(true))
             .default_service(web::get().to(not_found))
     })
-    .bind_openssl((cfg.address.clone(), cfg.socket), builder)
-    .map_err(|e| ServerError::IO(e))?
+    .bind_openssl((cfg.address, cfg.socket), builder)
+    .map_err(ServerError::IO)?
     .run()
     .await
-    .map_err(|e| ServerError::IO(e))
+    .map_err(ServerError::IO)
 }
 
 async fn not_found() -> HttpResponse {
@@ -118,12 +122,13 @@ async fn ws_route(
     cfg: Data<AppConfig>,
     router: Data<Addr<actor::LobbyRouter>>,
 ) -> Result<HttpResponse, actix_web::Error> {
+    let actor_cfg = Data::clone(&cfg).into_inner();
+    let actor = actor::Player::new(actor_cfg);
+    let (addr, res) = WsResponseBuilder::new(actor, &req, stream).start_with_addr()?;
+
     let qs = QString::from(req.query_string());
     let id_str = qs.get(&cfg.url_lobby_parameter);
     if let Some(Ok(id)) = id_str.map(Uuid::from_str) {
-        let actor_cfg = Data::clone(&cfg).into_inner();
-        let actor = actor::Player::new(actor_cfg);
-        let (addr, res) = WsResponseBuilder::new(actor, &req, stream).start_with_addr()?;
         let msg = JoinLobby {
             id,
             player: addr.clone(),
@@ -137,20 +142,10 @@ async fn ws_route(
                 addr.do_send(Disconnect::ServerOverloaded);
             }
         }
-
-        Ok(res)
     } else if id_str.is_some() {
-        let actor_cfg = Data::clone(&cfg).into_inner();
-        let actor = actor::Player::new(actor_cfg);
-        let (addr, res) = WsResponseBuilder::new(actor, &req, stream).start_with_addr()?;
         addr.do_send(Disconnect::InviteInvalid);
-        Ok(res)
     } else {
-        let actor_app_config = cfg.clone().into_inner();
-        let actor = actor::Player::new(actor_app_config);
-        let (addr, res) = WsResponseBuilder::new(actor, &req, stream).start_with_addr()?;
         let msg = CreateLobby { host: addr.clone() };
-
         match router.send(msg).await {
             Ok(()) => (),
             Err(MailboxError::Closed) => addr.do_send(Disconnect::ShuttingDown),
@@ -159,9 +154,9 @@ async fn ws_route(
                 addr.do_send(Disconnect::ServerOverloaded);
             }
         }
-
-        Ok(res)
     }
+
+    Ok(res)
 }
 
 #[derive(Debug)]

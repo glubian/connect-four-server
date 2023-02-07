@@ -1,4 +1,6 @@
-use connect_four_server::game::{EndTurnError, Game, GameWinner, Player, FIELD_SIZE};
+#![warn(clippy::all, clippy::pedantic)]
+
+use connect_four_server::game::{EndTurnError, Game, GameRules, GameWinner, Player, FIELD_SIZE};
 use std::io::BufRead;
 
 struct App {
@@ -9,7 +11,7 @@ struct App {
 impl App {
     fn new() -> Self {
         Self {
-            game: Game::new(Default::default()),
+            game: Game::new(GameRules::default()),
             moves: Vec::new(),
         }
     }
@@ -63,10 +65,10 @@ impl App {
                 let moves = self
                     .moves
                     .iter()
-                    .cloned()
+                    .copied()
                     .map(|m| m + 1)
                     .collect::<Vec<usize>>();
-                println!("{:?}", moves);
+                println!("{moves:?}");
             }
             "json" => println!("{}", serde_json::to_string_pretty(&self.game).unwrap()),
             "exit" => std::process::exit(0),

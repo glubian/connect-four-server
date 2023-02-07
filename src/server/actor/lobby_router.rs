@@ -36,6 +36,7 @@ pub struct LobbyRouter {
 }
 
 impl LobbyRouter {
+    #[must_use]
     pub fn new(cfg: Arc<AppConfig>) -> Self {
         Self {
             lobbies: HashMap::new(),
@@ -56,7 +57,7 @@ impl Actor for LobbyRouter {
 impl Handler<CreateLobby> for LobbyRouter {
     type Result = ();
 
-    fn handle(&mut self, msg: CreateLobby, ctx: &mut Self::Context) -> () {
+    fn handle(&mut self, msg: CreateLobby, ctx: &mut Self::Context) {
         if self.lobbies.len() >= self.cfg.max_lobbies {
             debug!("Failed to create a new lobby: max capacity reached!");
             msg.host.do_send(Disconnect::ServerMaxLobbies);
@@ -73,7 +74,7 @@ impl Handler<CreateLobby> for LobbyRouter {
 impl Handler<JoinLobby> for LobbyRouter {
     type Result = ();
 
-    fn handle(&mut self, msg: JoinLobby, _: &mut Self::Context) -> () {
+    fn handle(&mut self, msg: JoinLobby, _: &mut Self::Context) {
         let Some(lobby) = self.lobbies.get(&msg.id) else {
             msg.player.do_send(Disconnect::InviteInvalid);
             debug!("Lobby {} does not exist!", msg.id);
@@ -91,7 +92,7 @@ impl Handler<JoinLobby> for LobbyRouter {
 impl Handler<RemoveLobby> for LobbyRouter {
     type Result = ();
 
-    fn handle(&mut self, msg: RemoveLobby, _: &mut Self::Context) -> () {
+    fn handle(&mut self, msg: RemoveLobby, _: &mut Self::Context) {
         if let Some(lobby) = self.lobbies.remove(&msg.0) {
             if lobby.connected() {
                 lobby.do_send(Shutdown);

@@ -61,6 +61,7 @@ struct PlayerListSync {
 }
 
 impl Lobby {
+    #[must_use]
     pub fn new(
         router: Addr<actor::LobbyRouter>,
         id: Uuid,
@@ -96,7 +97,7 @@ impl Lobby {
     }
 
     fn sync_player_list(&mut self, _: &mut actix::Context<Self>) {
-        let codes = self.players.keys().cloned().collect();
+        let codes = self.players.keys().copied().collect();
         self.host.do_send(LobbySync(codes));
 
         let sync = &mut self.player_list_sync;
@@ -110,7 +111,7 @@ impl Lobby {
             return;
         }
 
-        if Instant::now() - sync.last_update < PLAYER_LIST_SYNC_DEBOUNCE {
+        if sync.last_update.elapsed() < PLAYER_LIST_SYNC_DEBOUNCE {
             sync.handle = Some(ctx.run_later(PLAYER_LIST_SYNC_DEBOUNCE, Self::sync_player_list));
         } else {
             self.sync_player_list(ctx);
@@ -158,7 +159,7 @@ impl Actor for Lobby {
 impl Handler<ConnectPlayer> for Lobby {
     type Result = ();
 
-    fn handle(&mut self, msg: ConnectPlayer, ctx: &mut Self::Context) -> () {
+    fn handle(&mut self, msg: ConnectPlayer, ctx: &mut Self::Context) {
         let player = msg.0;
         let Some(id) = self.get_id() else {
             player.do_send(Disconnect::LobbyFull);
@@ -182,7 +183,7 @@ impl Handler<ConnectPlayer> for Lobby {
 impl Handler<Disconnected> for Lobby {
     type Result = ();
 
-    fn handle(&mut self, msg: Disconnected, ctx: &mut Self::Context) -> () {
+    fn handle(&mut self, msg: Disconnected, ctx: &mut Self::Context) {
         if self.game.is_some() {
             return;
         }
@@ -202,7 +203,7 @@ impl Handler<Disconnected> for Lobby {
 impl Handler<PickPlayer> for Lobby {
     type Result = ();
 
-    fn handle(&mut self, msg: PickPlayer, ctx: &mut Self::Context) -> () {
+    fn handle(&mut self, msg: PickPlayer, ctx: &mut Self::Context) {
         let Some(player) = self.players.remove(&msg.code) else { return; };
         let game = match msg.role {
             Player::P1 => actor::Game::new(msg.game, msg.round, player, self.host.clone()),
@@ -221,7 +222,7 @@ impl Handler<PickPlayer> for Lobby {
 impl Handler<Shutdown> for Lobby {
     type Result = ();
 
-    fn handle(&mut self, _: Shutdown, ctx: &mut Self::Context) -> () {
+    fn handle(&mut self, _: Shutdown, ctx: &mut Self::Context) {
         debug!("Lobby shutting down");
         ctx.stop();
     }

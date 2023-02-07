@@ -27,6 +27,7 @@ pub struct Game {
 }
 
 impl Game {
+    #[must_use]
     pub fn new(
         game: InternalGame,
         round: u32,
@@ -89,7 +90,7 @@ impl Actor for Game {
 impl Handler<Disconnected> for Game {
     type Result = ();
 
-    fn handle(&mut self, _: Disconnected, ctx: &mut Self::Context) -> () {
+    fn handle(&mut self, _: Disconnected, ctx: &mut Self::Context) {
         ctx.stop();
     }
 }
@@ -97,7 +98,7 @@ impl Handler<Disconnected> for Game {
 impl Handler<EndTurn> for Game {
     type Result = ();
 
-    fn handle(&mut self, msg: EndTurn, _: &mut Self::Context) -> () {
+    fn handle(&mut self, msg: EndTurn, _: &mut Self::Context) {
         let current_player_addr = self.current_player_addr();
 
         if !(&msg.player == current_player_addr && self.game.end_turn(msg.col).is_ok()) {
@@ -111,7 +112,7 @@ impl Handler<EndTurn> for Game {
 impl Handler<Restart> for Game {
     type Result = ();
 
-    fn handle(&mut self, _: Restart, _: &mut Self::Context) -> () {
+    fn handle(&mut self, _: Restart, _: &mut Self::Context) {
         let rules = self.game.rules();
         let rules = GameRules {
             starting_player: rules.starting_player.other(),

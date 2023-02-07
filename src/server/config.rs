@@ -68,8 +68,8 @@ impl std::error::Error for AppConfigError {}
 
 impl AppConfig {
     pub fn from_file(path: &PathBuf) -> Result<Self, AppConfigError> {
-        let cfg = fs::read_to_string(path).map_err(|e| AppConfigError::FailedToReadFile(e))?;
-        toml::from_str::<Self>(&cfg).map_err(|e| AppConfigError::FailedToParseContents(e))
+        let cfg = fs::read_to_string(path).map_err(AppConfigError::FailedToReadFile)?;
+        toml::from_str::<Self>(&cfg).map_err(AppConfigError::FailedToParseContents)
     }
 
     pub fn apply_partial(&mut self, cfg: AppConfigPartial) {
