@@ -350,7 +350,7 @@ impl Game {
     fn len_horizontal(&self, x: usize, y: usize, player: Player) -> usize {
         let mut len = 1;
 
-        for x in (1..x).rev() {
+        for x in (0..x).rev() {
             match self.field[x][y] {
                 Some(p) if player == p => len += 1,
                 _ => break,
@@ -370,7 +370,7 @@ impl Game {
     fn len_vertical(&self, x: usize, y: usize, player: Player) -> usize {
         let mut len = 1;
 
-        for y in (1..y).rev() {
+        for y in (0..y).rev() {
             match self.field[x][y] {
                 Some(p) if player == p => len += 1,
                 _ => break,
