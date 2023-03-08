@@ -86,7 +86,7 @@ impl fmt::Display for GameValidationError {
 
 impl Error for GameValidationError {}
 
-fn is_tile_count_valid(starting_player: Player, p1: u32, p2: u32) -> bool {
+fn is_chip_count_valid(starting_player: Player, p1: u32, p2: u32) -> bool {
     match starting_player {
         _ if p1 == p2 => true,
         Player::P1 => p1 == p2 + 1,
@@ -121,7 +121,7 @@ fn get_turn_and_validate(
         }
     }
 
-    if is_tile_count_valid(starting_player, p1, p2) {
+    if is_chip_count_valid(starting_player, p1, p2) {
         Ok(p1 + p2)
     } else {
         Err(GameValidationError::ChipCount)
