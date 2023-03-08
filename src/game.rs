@@ -545,6 +545,11 @@ mod tests {
         fast_forward_game(rules, &moves)
     }
 
+    fn won_game_3(rules: GameRules) -> Game {
+        let moves = [4, 5, 1, 7, 3, 6, 2];
+        fast_forward_game(rules, &moves)
+    }
+
     fn drawn_game(rules: GameRules) -> (Game, Result<(), ()>) {
         let mut game = won_game_horizontal(rules);
         let drawn = game.end_turn(6).map_err(|_| ());
@@ -669,6 +674,12 @@ mod tests {
     #[test]
     fn is_game_over_2() {
         let game = won_game_2(GameRules::default());
+        assert!(game.state.result.is_some());
+    }
+
+    #[test]
+    fn is_game_over_3() {
+        let game = won_game_3(GameRules::default());
         assert!(game.state.result.is_some());
     }
 
