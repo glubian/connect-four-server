@@ -76,6 +76,8 @@ pub enum IncomingMessage {
 
 // Internal messages
 
+/// Stores the converted message as an `Arc<String>`, allowing it to be sent to
+/// multiple players.
 #[derive(Message, Clone)]
 #[rtype(result = "()")]
 pub struct SharedOutgoingMessage(Arc<String>);
