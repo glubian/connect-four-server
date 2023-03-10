@@ -6,7 +6,9 @@ use crate::game::Game as InternalGame;
 use crate::game::{GameRules, Player};
 
 use crate::server::actor;
-use actor::player::{AttachController, Disconnect, Disconnected, GameRole, GameSync};
+use actor::player::{
+    AttachController, Disconnect, Disconnected, GameRole, OutgoingMessage, SharedOutgoingMessage,
+};
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -50,7 +52,11 @@ impl Game {
     }
 
     fn sync(&self) {
-        let sync1 = GameSync::new(self.round, &self.game).unwrap();
+        let round = self.round;
+        let game = &self.game;
+        let sync1: SharedOutgoingMessage = OutgoingMessage::GameSync { round, game }
+            .try_into()
+            .unwrap();
         let sync2 = sync1.clone();
         self.p1.do_send(sync1);
         self.p2.do_send(sync2);

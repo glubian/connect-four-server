@@ -35,13 +35,6 @@ pub struct LobbyCode(pub u8);
 #[rtype(result = "()")]
 pub struct GameRole(pub game::Player);
 
-#[derive(Message, Clone)]
-#[rtype(result = "()")]
-pub struct GameSync {
-    round: u32,
-    game: Arc<String>,
-}
-
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum OutgoingMessage<'a> {
@@ -49,7 +42,7 @@ pub enum OutgoingMessage<'a> {
     LobbySync { players: &'a [u8] },
     LobbyCode { code: u8 },
     GameRole { role: game::Player },
-    GameSync { round: u32, game: &'a str },
+    GameSync { round: u32, game: &'a Game },
 }
 
 #[derive(Serialize)]
@@ -313,22 +306,6 @@ impl Handler<GameRole> for Player {
     }
 }
 
-impl Handler<GameSync> for Player {
-    type Result = ();
-
-    fn handle(&mut self, msg: GameSync, ctx: &mut Self::Context) {
-        let round = msg.round;
-        let game = &msg.game;
-        let Ok(msg) = serde_json::to_string(&OutgoingMessage::GameSync { round, game }) else {
-            error!("Failed to convert game sync message to JSON");
-            return;
-        };
-
-        ctx.text(msg);
-        debug!("Game sync sent");
-    }
-}
-
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Player {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         use Either::*;
@@ -411,11 +388,3 @@ impl Handler<SharedOutgoingMessage> for Player {
     }
 }
 
-impl GameSync {
-    pub fn new(round: u32, game: &Game) -> Result<Self, serde_json::Error> {
-        Ok(Self {
-            round,
-            game: Arc::new(serde_json::to_string(game)?),
-        })
-    }
-}
