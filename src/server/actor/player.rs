@@ -83,6 +83,19 @@ pub enum IncomingMessage {
 
 // Internal messages
 
+#[derive(Message, Clone)]
+#[rtype(result = "()")]
+pub struct SharedOutgoingMessage(Arc<String>);
+
+impl<'a> TryFrom<OutgoingMessage<'a>> for SharedOutgoingMessage {
+    type Error = serde_json::Error;
+
+    fn try_from(msg: OutgoingMessage) -> Result<Self, Self::Error> {
+        let msg = serde_json::to_string(&msg)?;
+        Ok(Self(Arc::new(msg)))
+    }
+}
+
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct AttachController(pub Either<Addr<actor::Lobby>, Addr<actor::Game>>);
@@ -386,6 +399,15 @@ impl Handler<Disconnect> for Player {
             description: Some(String::from(d.as_str())),
         }));
         ctx.stop();
+    }
+}
+
+impl Handler<SharedOutgoingMessage> for Player {
+    type Result = ();
+
+    fn handle(&mut self, msg: SharedOutgoingMessage, ctx: &mut Self::Context) {
+        ctx.text(msg.0.as_str());
+        debug!("Shared outgoing message sent");
     }
 }
 
