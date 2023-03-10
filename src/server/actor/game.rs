@@ -14,6 +14,7 @@ use actor::player::{
 #[rtype(result = "()")]
 pub struct EndTurn {
     pub player: Addr<actor::Player>,
+    pub turn: u32,
     pub col: usize,
 }
 
@@ -105,13 +106,15 @@ impl Handler<EndTurn> for Game {
     type Result = ();
 
     fn handle(&mut self, msg: EndTurn, _: &mut Self::Context) {
+        let turn = self.game.state().turn;
         let current_player_addr = self.current_player_addr();
 
-        if !(&msg.player == current_player_addr && self.game.end_turn(msg.col).is_ok()) {
-            return;
+        if &msg.player == current_player_addr
+            && turn == msg.turn
+            && self.game.end_turn(msg.col).is_ok()
+        {
+            self.sync();
         }
-
-        self.sync();
     }
 }
 

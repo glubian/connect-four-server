@@ -70,7 +70,7 @@ pub struct QR {
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum IncomingMessage {
     LobbyPickPlayer(PickPlayer),
-    GameEndTurn { col: usize },
+    GameEndTurn { turn: u32, col: usize },
     GameRestart,
 }
 
@@ -330,15 +330,16 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Player {
                     debug!("Received IncomingMessage::LobbyPickPlayer");
                     lobby.try_send(msg).unwrap();
                 }
-                Ok(IncomingMessage::GameEndTurn { col }) => {
+                Ok(IncomingMessage::GameEndTurn { turn, col }) => {
                     let Some(Right(game)) = &self.controller else {
                         debug!("Received IncomingMessage::LobbyPickPlayer, but no controller is attached!");
                         return;
                     };
                     debug!("Received IncomingMessage::GameEndTurn");
                     game.try_send(EndTurn {
-                        col,
                         player: ctx.address(),
+                        turn,
+                        col,
                     })
                     .unwrap();
                 }
