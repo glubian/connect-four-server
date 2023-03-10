@@ -44,7 +44,7 @@ pub struct GameSync {
 
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-enum OutgoingMessage<'a> {
+pub enum OutgoingMessage<'a> {
     LobbyLink(OutgoingLobbyLink<'a>),
     LobbySync { players: &'a [u8] },
     LobbyCode { code: u8 },
@@ -54,9 +54,9 @@ enum OutgoingMessage<'a> {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct OutgoingLobbyLink<'a> {
-    lobby: &'a str,
-    qr_code: QR,
+pub struct OutgoingLobbyLink<'a> {
+    pub lobby: &'a str,
+    pub qr_code: QR,
 }
 
 impl<'a> From<OutgoingLobbyLink<'a>> for OutgoingMessage<'a> {
@@ -66,9 +66,9 @@ impl<'a> From<OutgoingLobbyLink<'a>> for OutgoingMessage<'a> {
 }
 
 #[derive(Serialize, Default)]
-struct QR {
-    img: String,
-    width: usize,
+pub struct QR {
+    pub img: String,
+    pub width: usize,
 }
 
 // Incoming messages
