@@ -53,8 +53,8 @@ pub struct GameResult {
 #[derive(Clone, Copy, PartialEq, Eq, Serialize_repr, Deserialize_repr, Debug)]
 #[repr(u8)]
 pub enum GameWinner {
-    P1 = 0,
-    P2 = 1,
+    P1 = Player::P1 as u8,
+    P2 = Player::P2 as u8,
     Draw = 2,
 }
 
