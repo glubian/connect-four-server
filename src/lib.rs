@@ -12,4 +12,6 @@
 #![allow(clippy::missing_errors_doc)]
 
 pub mod game;
+pub mod game_config;
 pub mod server;
+pub mod wrap;

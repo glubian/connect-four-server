@@ -8,11 +8,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::game::{self, Game};
+use crate::game_config::PartialGameConfig;
+use crate::server::actor::game::PlayerSelectionVote;
 use crate::server::{
     actor::{
         self,
         game::{EndTurn, Restart},
-        lobby::PickPlayer,
     },
     config::AppConfig,
 };
@@ -42,6 +43,7 @@ pub enum OutgoingMessage<'a> {
     LobbySync { players: &'a [u8] },
     LobbyCode { code: u8 },
     GameRole { role: game::Player },
+    GamePlayerSelection { p1_voted: bool, p2_voted: bool },
     GameSync { round: u32, game: &'a Game },
 }
 
@@ -66,10 +68,27 @@ pub struct QR {
 
 // Incoming messages
 
+#[derive(Message, Deserialize)]
+#[rtype(result = "()")]
+pub struct IncomingPickPlayer {
+    pub code: u8,
+    pub role: game::Player,
+    pub game: Option<Game>,
+    pub config: PartialGameConfig,
+    pub round: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncomingPlayerSelectionVote {
+    wants_to_start: bool,
+}
+
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum IncomingMessage {
-    LobbyPickPlayer(PickPlayer),
+    LobbyPickPlayer(IncomingPickPlayer),
+    GamePlayerSelectionVote(IncomingPlayerSelectionVote),
     GameEndTurn { turn: u32, col: usize },
     GameRestart,
 }
@@ -330,6 +349,18 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Player {
                     debug!("Received IncomingMessage::LobbyPickPlayer");
                     lobby.try_send(msg).unwrap();
                 }
+                Ok(IncomingMessage::GamePlayerSelectionVote(msg)) => {
+                    let Some(Right(game)) = &self.controller else {
+                        debug!("Received IncomingMessage::GamePlayerSelectionVote, but no controller is attached!");
+                        return;
+                    };
+                    debug!("Received IncomingMessage::GamePlayerSelectionVote");
+                    game.try_send(PlayerSelectionVote {
+                        player: ctx.address(),
+                        wants_to_start: msg.wants_to_start,
+                    })
+                    .unwrap();
+                }
                 Ok(IncomingMessage::GameEndTurn { turn, col }) => {
                     let Some(Right(game)) = &self.controller else {
                         debug!("Received IncomingMessage::LobbyPickPlayer, but no controller is attached!");
@@ -390,4 +421,3 @@ impl Handler<SharedOutgoingMessage> for Player {
         debug!("Shared outgoing message sent");
     }
 }
-

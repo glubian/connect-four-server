@@ -8,31 +8,25 @@ use actix::prelude::*;
 use actix_web::Either;
 use log::debug;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
-use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    game::{Game, Player},
+    game::Player,
+    game_config::GameConfig,
     server::{
         actor::{
             self,
             lobby_router::RemoveLobby,
-            player::{AttachController, Disconnect, Disconnected, LobbyCode, LobbyLink, LobbySync},
+            player::{
+                AttachController, Disconnect, Disconnected, IncomingPickPlayer, LobbyCode,
+                LobbyLink, LobbySync,
+            },
         },
         AppConfig,
     },
 };
 
 const PLAYER_LIST_SYNC_DEBOUNCE: Duration = Duration::from_secs(1);
-
-#[derive(Message, Deserialize)]
-#[rtype(result = "()")]
-pub struct PickPlayer {
-    pub code: u8,
-    pub role: Player,
-    pub game: Game,
-    pub round: u32,
-}
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -200,15 +194,23 @@ impl Handler<Disconnected> for Lobby {
     }
 }
 
-impl Handler<PickPlayer> for Lobby {
+impl Handler<IncomingPickPlayer> for Lobby {
     type Result = ();
 
-    fn handle(&mut self, msg: PickPlayer, ctx: &mut Self::Context) {
-        let Some(player) = self.players.remove(&msg.code) else { return; };
-        let game = match msg.role {
-            Player::P1 => actor::Game::new(msg.game, msg.round, player, self.host.clone()),
-            Player::P2 => actor::Game::new(msg.game, msg.round, self.host.clone(), player),
+    fn handle(&mut self, msg: IncomingPickPlayer, ctx: &mut Self::Context) {
+        let IncomingPickPlayer {
+            code,
+            game,
+            config,
+            round,
+            role,
+        } = msg;
+        let Some(player) = self.players.remove(&code) else { return; };
+        let (p1, p2) = match role {
+            Player::P1 => (player, self.host.clone()),
+            Player::P2 => (self.host.clone(), player),
         };
+        let game = actor::Game::new(game, config.into(), round, p1, p2);
         self.game = Some(game.start());
         debug!(
             "Player {} was chosen as {:?}, lobby shutting down",

@@ -1,14 +1,23 @@
 use actix::prelude::*;
 use actix_web::Either;
 use log::debug;
+use rand::Rng;
 
 use crate::game::Game as InternalGame;
 use crate::game::{GameRules, Player};
 
+use crate::game_config::GameConfig;
 use crate::server::actor;
 use actor::player::{
     AttachController, Disconnect, Disconnected, GameRole, OutgoingMessage, SharedOutgoingMessage,
 };
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct PlayerSelectionVote {
+    pub player: Addr<actor::Player>,
+    pub wants_to_start: bool,
+}
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -22,8 +31,84 @@ pub struct EndTurn {
 #[rtype(result = "()")]
 pub struct Restart;
 
-pub struct Game {
+struct PlayerSelectionStage {
+    p1_vote: Option<bool>,
+    p2_vote: Option<bool>,
+    config: GameConfig,
+}
+
+impl PlayerSelectionStage {
+    fn new(config: GameConfig) -> Self {
+        Self {
+            p1_vote: None,
+            p2_vote: None,
+            config,
+        }
+    }
+}
+
+struct InGameStage {
     game: InternalGame,
+}
+
+impl InGameStage {
+    fn starting_player(p1_vote: bool, p2_vote: bool) -> Player {
+        if p1_vote && !p2_vote {
+            Player::P1
+        } else if p2_vote && !p1_vote {
+            Player::P2
+        } else if rand::thread_rng().gen::<bool>() {
+            Player::P1
+        } else {
+            Player::P2
+        }
+    }
+
+    fn new(p1_vote: bool, p2_vote: bool, rules: &GameConfig) -> Self {
+        let starting_player = Self::starting_player(p1_vote, p2_vote);
+        let rules = GameRules {
+            starting_player,
+            allow_draws: rules.allow_draws,
+        };
+        let game = InternalGame::new(rules);
+        Self { game }
+    }
+}
+
+enum GameStage {
+    PlayerSelection(PlayerSelectionStage),
+    InGame(InGameStage),
+}
+
+impl GameStage {
+    fn outgoing_message(&self, round: u32) -> OutgoingMessage {
+        match self {
+            Self::PlayerSelection(stage) => OutgoingMessage::GamePlayerSelection {
+                p1_voted: stage.p1_vote.is_some(),
+                p2_voted: stage.p2_vote.is_some(),
+            },
+            Self::InGame(stage) => OutgoingMessage::GameSync {
+                round,
+                game: &stage.game,
+            },
+        }
+    }
+}
+
+impl From<PlayerSelectionStage> for GameStage {
+    fn from(stage: PlayerSelectionStage) -> Self {
+        Self::PlayerSelection(stage)
+    }
+}
+
+impl From<InGameStage> for GameStage {
+    fn from(stage: InGameStage) -> Self {
+        Self::InGame(stage)
+    }
+}
+
+pub struct Game {
+    stage: GameStage,
     round: u32,
     p1: Addr<actor::Player>,
     p2: Addr<actor::Player>,
@@ -32,21 +117,28 @@ pub struct Game {
 impl Game {
     #[must_use]
     pub fn new(
-        game: InternalGame,
+        game: Option<InternalGame>,
+        config: GameConfig,
         round: u32,
         p1: Addr<actor::Player>,
         p2: Addr<actor::Player>,
     ) -> Self {
+        let stage = if let Some(game) = game {
+            InGameStage { game }.into()
+        } else {
+            PlayerSelectionStage::new(config).into()
+        };
+
         Self {
-            game,
+            stage,
             round,
             p1,
             p2,
         }
     }
 
-    fn current_player_addr(&self) -> &Addr<actor::Player> {
-        match self.game.state().player {
+    fn get_player_addr(&self, player: Player) -> &Addr<actor::Player> {
+        match player {
             Player::P1 => &self.p1,
             Player::P2 => &self.p2,
         }
@@ -54,10 +146,8 @@ impl Game {
 
     fn sync(&self) {
         let round = self.round;
-        let game = &self.game;
-        let sync1: SharedOutgoingMessage = OutgoingMessage::GameSync { round, game }
-            .try_into()
-            .unwrap();
+        let res: Result<SharedOutgoingMessage, _> = self.stage.outgoing_message(round).try_into();
+        let Ok(sync1) = res else { return };
         let sync2 = sync1.clone();
         self.p1.do_send(sync1);
         self.p2.do_send(sync2);
@@ -102,17 +192,61 @@ impl Handler<Disconnected> for Game {
     }
 }
 
+impl Handler<PlayerSelectionVote> for Game {
+    type Result = ();
+
+    fn handle(&mut self, msg: PlayerSelectionVote, _: &mut Self::Context) {
+        let GameStage::PlayerSelection(stage) = &mut self.stage else {
+            return;
+        };
+
+        let update_p1 = msg.player == self.p1 && stage.p1_vote.is_none();
+        let update_p2 = msg.player == self.p2 && stage.p2_vote.is_none();
+        if !(update_p1 || update_p2) {
+            return;
+        }
+
+        if update_p1 {
+            stage.p1_vote = Some(msg.wants_to_start);
+        }
+
+        if update_p2 {
+            stage.p2_vote = Some(msg.wants_to_start);
+        }
+
+        if let PlayerSelectionStage {
+            p1_vote: Some(p1_vote),
+            p2_vote: Some(p2_vote),
+            ..
+        } = *stage
+        {
+            self.stage = InGameStage::new(p1_vote, p2_vote, &stage.config).into();
+        }
+
+        self.sync();
+    }
+}
+
 impl Handler<EndTurn> for Game {
     type Result = ();
 
     fn handle(&mut self, msg: EndTurn, _: &mut Self::Context) {
-        let turn = self.game.state().turn;
-        let current_player_addr = self.current_player_addr();
+        let GameStage::InGame(InGameStage { game }) = &self.stage else {
+            return;
+        };
 
-        if &msg.player == current_player_addr
-            && turn == msg.turn
-            && self.game.end_turn(msg.col).is_ok()
-        {
+        let state = game.state();
+        let turn = state.turn;
+        let current_player_addr = self.get_player_addr(state.player);
+        if !(&msg.player == current_player_addr && turn == msg.turn) {
+            return;
+        }
+
+        let GameStage::InGame(InGameStage { game }) = &mut self.stage else {
+            return;
+        };
+
+        if game.end_turn(msg.col).is_ok() {
             self.sync();
         }
     }
@@ -122,12 +256,16 @@ impl Handler<Restart> for Game {
     type Result = ();
 
     fn handle(&mut self, _: Restart, _: &mut Self::Context) {
-        let rules = self.game.rules();
-        let rules = GameRules {
-            starting_player: rules.starting_player.other(),
-            allow_draws: rules.allow_draws,
-        };
-        self.game = InternalGame::new(rules);
+        match &self.stage {
+            GameStage::PlayerSelection(stage) => {
+                self.stage = PlayerSelectionStage::new(stage.config.clone()).into();
+            }
+            GameStage::InGame(InGameStage { game }) => {
+                let rules = GameConfig::from_game_rules(game.rules());
+                self.stage = PlayerSelectionStage::new(rules).into();
+            }
+        }
+
         self.round = self.round.wrapping_add(1);
         self.sync();
         debug!("Restarted");
