@@ -12,7 +12,6 @@ use uuid::Uuid;
 
 use crate::{
     game::Player,
-    game_config::GameConfig,
     server::{
         actor::{
             self,
