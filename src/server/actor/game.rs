@@ -9,7 +9,8 @@ use crate::game::{GameRules, Player};
 use crate::game_config::GameConfig;
 use crate::server::actor;
 use actor::player::{
-    AttachController, Disconnect, Disconnected, GameRole, OutgoingMessage, SharedOutgoingMessage,
+    AttachController, Disconnect, Disconnected, GameRole, OutgoingMessage, OutgoingPlayerSelection,
+    SharedOutgoingMessage,
 };
 
 #[derive(Message)]
@@ -83,10 +84,11 @@ enum GameStage {
 impl GameStage {
     fn outgoing_message(&self, round: u32) -> OutgoingMessage {
         match self {
-            Self::PlayerSelection(stage) => OutgoingMessage::GamePlayerSelection {
+            Self::PlayerSelection(stage) => OutgoingPlayerSelection {
                 p1_voted: stage.p1_vote.is_some(),
                 p2_voted: stage.p2_vote.is_some(),
-            },
+            }
+            .into(),
             Self::InGame(stage) => OutgoingMessage::GameSync {
                 round,
                 game: &stage.game,

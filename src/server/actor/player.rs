@@ -43,7 +43,7 @@ pub enum OutgoingMessage<'a> {
     LobbySync { players: &'a [u8] },
     LobbyCode { code: u8 },
     GameRole { role: game::Player },
-    GamePlayerSelection { p1_voted: bool, p2_voted: bool },
+    GamePlayerSelection(OutgoingPlayerSelection),
     GameSync { round: u32, game: &'a Game },
 }
 
@@ -57,6 +57,19 @@ pub struct OutgoingLobbyLink<'a> {
 impl<'a> From<OutgoingLobbyLink<'a>> for OutgoingMessage<'a> {
     fn from(value: OutgoingLobbyLink<'a>) -> Self {
         Self::LobbyLink(value)
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutgoingPlayerSelection {
+    pub p1_voted: bool,
+    pub p2_voted: bool,
+}
+
+impl<'a> From<OutgoingPlayerSelection> for OutgoingMessage<'a> {
+    fn from(msg: OutgoingPlayerSelection) -> Self {
+        Self::GamePlayerSelection(msg)
     }
 }
 
