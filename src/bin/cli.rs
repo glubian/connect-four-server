@@ -25,10 +25,7 @@ impl App {
                 continue;
             };
 
-            line.split(", ")
-                .into_iter()
-                .for_each(|cmd| self.process_move(cmd));
-
+            line.split(", ").for_each(|cmd| self.process_move(cmd));
             print!("{}", self.game.to_string());
         }
     }
