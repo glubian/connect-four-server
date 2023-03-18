@@ -108,6 +108,18 @@ pub enum IncomingMessage {
 
 // Internal messages
 
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct SerializedOutgoingMessage(String);
+
+impl<'a> TryFrom<OutgoingMessage<'a>> for SerializedOutgoingMessage {
+    type Error = serde_json::Error;
+
+    fn try_from(msg: OutgoingMessage) -> Result<Self, Self::Error> {
+        Ok(Self(serde_json::to_string(&msg)?))
+    }
+}
+
 /// Stores the converted message as an `Arc<String>`, allowing it to be sent to
 /// multiple players.
 #[derive(Message, Clone)]
@@ -423,6 +435,14 @@ impl Handler<Disconnect> for Player {
             description: Some(String::from(d.as_str())),
         }));
         ctx.stop();
+    }
+}
+
+impl Handler<SerializedOutgoingMessage> for Player {
+    type Result = ();
+
+    fn handle(&mut self, msg: SerializedOutgoingMessage, ctx: &mut Self::Context) {
+        ctx.text(&msg.0[..]);
     }
 }
 
