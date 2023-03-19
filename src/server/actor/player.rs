@@ -3,12 +3,13 @@ use std::{sync::Arc, time::Instant};
 use actix::{prelude::*, WeakAddr};
 use actix_web::Either;
 use actix_web_actors::ws::{self, CloseReason};
+use chrono::Utc;
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::game::{self, Game};
-use crate::game_config::PartialGameConfig;
+use crate::game_config::{GameConfig, PartialGameConfig};
 use crate::server::actor::game::PlayerSelectionVote;
 use crate::server::{
     actor::{
@@ -26,7 +27,7 @@ pub enum OutgoingMessage<'a> {
     LobbyLink(OutgoingLobbyLink),
     LobbySync { players: &'a [u8] },
     LobbyCode { code: u8 },
-    GameRole { role: game::Player },
+    GameSetup(OutgoingGameSetup<'a>),
     GamePlayerSelection(OutgoingPlayerSelection),
     GameSync { round: u32, game: &'a Game },
 }
@@ -36,6 +37,20 @@ impl<'a> OutgoingMessage<'a> {
     #[must_use]
     pub fn lobby_link(uuid: Uuid, cfg: &AppConfig) -> Self {
         OutgoingLobbyLink::new(uuid, cfg).into()
+    }
+
+    #[must_use]
+    pub fn full_game_setup(role: game::Player, config: &'a GameConfig) -> Self {
+        OutgoingGameSetup::new()
+            .set_role(role)
+            .set_config(config)
+            .set_timestamp()
+            .into()
+    }
+
+    #[must_use]
+    pub const fn game_setup() -> OutgoingGameSetup<'a> {
+        OutgoingGameSetup::new()
     }
 
     /// Constructs a new `OutgoingMessage::GamePlayerSelection`.
@@ -82,6 +97,53 @@ impl OutgoingLobbyLink {
 impl<'a> From<OutgoingLobbyLink> for OutgoingMessage<'a> {
     fn from(msg: OutgoingLobbyLink) -> Self {
         Self::LobbyLink(msg)
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutgoingGameSetup<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    role: Option<game::Player>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    config: Option<&'a GameConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timestamp: Option<String>,
+}
+
+impl<'a> OutgoingGameSetup<'a> {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            role: None,
+            config: None,
+            timestamp: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn set_role(mut self, role: game::Player) -> Self {
+        self.role = Some(role);
+        self
+    }
+
+    #[must_use]
+    pub const fn set_config(mut self, config: &'a GameConfig) -> Self {
+        self.config = Some(config);
+        self
+    }
+
+    #[must_use]
+    pub fn set_timestamp(mut self) -> Self {
+        // Conform to the ISO 8601 format: YYYY-MM-DDTHH:mm:ss.sssZ
+        self.timestamp = Some(Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string());
+        self
+    }
+}
+
+impl<'a> From<OutgoingGameSetup<'a>> for OutgoingMessage<'a> {
+    fn from(msg: OutgoingGameSetup<'a>) -> Self {
+        Self::GameSetup(msg)
     }
 }
 
