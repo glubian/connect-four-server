@@ -8,10 +8,7 @@ use crate::game::{GameRules, Player};
 
 use crate::game_config::GameConfig;
 use crate::server::actor;
-use actor::player::{
-    AttachController, Disconnect, Disconnected, OutgoingMessage, OutgoingPlayerSelection,
-    SharedOutgoingMessage,
-};
+use actor::player::{AttachController, Disconnect, Disconnected, OutgoingMessage};
 
 #[derive(Message)]
 #[rtype(result = "()")]
