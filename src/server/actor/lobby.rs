@@ -18,7 +18,7 @@ use crate::{
             lobby_router::RemoveLobby,
             player::{
                 AttachController, Disconnect, Disconnected, IncomingPickPlayer, LobbyCode,
-                LobbySync, OutgoingMessage,
+                OutgoingMessage,
             },
         },
         AppConfig,
@@ -90,8 +90,12 @@ impl Lobby {
     }
 
     fn sync_player_list(&mut self, _: &mut actix::Context<Self>) {
-        let codes = self.players.keys().copied().collect();
-        self.host.do_send(LobbySync(codes));
+        let codes: Vec<u8> = self.players.keys().copied().collect();
+        let Ok(msg) = OutgoingMessage::LobbySync { players: &codes }.into_serialized() else {
+            error!("Failed to serialize lobby sync message");
+            return;
+        };
+        self.host.do_send(msg);
 
         let sync = &mut self.player_list_sync;
         sync.last_update = Instant::now();
