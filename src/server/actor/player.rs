@@ -408,7 +408,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Player {
                 }
                 Ok(IncomingMessage::GameEndTurn { turn, col }) => {
                     let Some(Right(game)) = &self.controller else {
-                        debug!("Received IncomingMessage::LobbyPickPlayer, but no controller is attached!");
+                        debug!("Received IncomingMessage::GameEndTurn, but no controller is attached!");
                         return;
                     };
                     debug!("Received IncomingMessage::GameEndTurn");
@@ -421,7 +421,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Player {
                 }
                 Ok(IncomingMessage::GameRestart(IncomingRestart { config })) => {
                     let Some(Right(game)) = &self.controller else {
-                        debug!("Received IncomingMessage::LobbyPickPlayer, but no controller is attached!");
+                        debug!("Received IncomingMessage::GameRestart, but no controller is attached!");
                         return;
                     };
                     debug!("Received IncomingMessage::GameRestart");
