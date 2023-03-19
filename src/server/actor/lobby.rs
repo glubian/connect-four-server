@@ -6,7 +6,7 @@ use std::{
 
 use actix::prelude::*;
 use actix_web::Either;
-use log::debug;
+use log::{debug, error};
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use uuid::Uuid;
 
@@ -18,7 +18,7 @@ use crate::{
             lobby_router::RemoveLobby,
             player::{
                 AttachController, Disconnect, Disconnected, IncomingPickPlayer, LobbyCode,
-                LobbyLink, LobbySync,
+                LobbySync, OutgoingMessage,
             },
         },
         AppConfig,
@@ -122,7 +122,14 @@ impl Actor for Lobby {
             ctx.stop();
             return;
         };
-        self.host.do_send(LobbyLink(self.id));
+
+        let Ok(link_msg) = OutgoingMessage::lobby_link(self.id, &self.cfg).into_serialized() else {
+            error!("Failed to serialize lobby link message, shutting down");
+            ctx.stop();
+            return;
+        };
+
+        self.host.do_send(link_msg);
         debug!("Started");
     }
 
