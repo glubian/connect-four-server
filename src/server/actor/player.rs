@@ -48,6 +48,12 @@ pub enum OutgoingMessage<'a> {
 }
 
 impl<'a> OutgoingMessage<'a> {
+    /// Constructs a new `OutgoingMessage::LobbyLink`.
+    #[must_use]
+    pub fn lobby_link(uuid: Uuid, cfg: &AppConfig) -> Self {
+        OutgoingLobbyLink::new(uuid, cfg).into()
+    }
+
     /// Attempts to convert the message into a `SerializedOutgoingMessage`.
     pub fn into_serialized(self) -> Result<SerializedOutgoingMessage, serde_json::Error> {
         self.try_into()
