@@ -35,6 +35,13 @@ impl GameConfig {
             allow_draws: rules.allow_draws,
         }
     }
+
+    /// Overwrites any settings contained within a `PartialGameConfig`.
+    pub fn apply_partial(&mut self, partial: &PartialGameConfig) {
+        if let Some(allow_draws) = partial.allow_draws {
+            self.allow_draws = allow_draws;
+        }
+    }
 }
 
 impl From<PartialGameConfig> for GameConfig {

@@ -6,7 +6,7 @@ use rand::Rng;
 use crate::game::Game as InternalGame;
 use crate::game::{GameRules, Player};
 
-use crate::game_config::GameConfig;
+use crate::game_config::{GameConfig, PartialGameConfig};
 use crate::server::actor;
 use actor::player::{AttachController, Disconnect, Disconnected, OutgoingMessage};
 
@@ -27,7 +27,7 @@ pub struct EndTurn {
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct Restart;
+pub struct Restart(pub Option<PartialGameConfig>);
 
 struct PlayerSelectionStage {
     p1_vote: Option<bool>,
@@ -273,17 +273,17 @@ impl Handler<EndTurn> for Game {
 impl Handler<Restart> for Game {
     type Result = ();
 
-    fn handle(&mut self, _: Restart, _: &mut Self::Context) {
-        match &self.stage {
-            GameStage::PlayerSelection(stage) => {
-                self.stage = PlayerSelectionStage::new(stage.config.clone()).into();
-            }
-            GameStage::InGame(InGameStage { game }) => {
-                let rules = GameConfig::from_game_rules(game.rules());
-                self.stage = PlayerSelectionStage::new(rules).into();
-            }
+    fn handle(&mut self, Restart(partial): Restart, _: &mut Self::Context) {
+        let mut config = match &self.stage {
+            GameStage::PlayerSelection(stage) => stage.config.clone(),
+            GameStage::InGame(InGameStage { game }) => GameConfig::from_game_rules(game.rules()),
+        };
+
+        if let Some(partial) = &partial {
+            config.apply_partial(partial);
         }
 
+        self.stage = PlayerSelectionStage::new(config).into();
         self.round = self.round.wrapping_add(1);
         self.sync();
         debug!("Restarted");

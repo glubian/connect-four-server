@@ -209,12 +209,19 @@ struct IncomingPlayerSelectionVote {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct IncomingRestart {
+    #[serde(flatten)]
+    config: Option<PartialGameConfig>,
+}
+
+#[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 enum IncomingMessage {
     LobbyPickPlayer(IncomingPickPlayer),
     GamePlayerSelectionVote(IncomingPlayerSelectionVote),
     GameEndTurn { turn: u32, col: usize },
-    GameRestart,
+    GameRestart(IncomingRestart),
 }
 
 // Internal messages
@@ -412,13 +419,13 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Player {
                     })
                     .unwrap();
                 }
-                Ok(IncomingMessage::GameRestart) => {
+                Ok(IncomingMessage::GameRestart(IncomingRestart { config })) => {
                     let Some(Right(game)) = &self.controller else {
                         debug!("Received IncomingMessage::LobbyPickPlayer, but no controller is attached!");
                         return;
                     };
                     debug!("Received IncomingMessage::GameRestart");
-                    game.try_send(Restart).unwrap();
+                    game.try_send(Restart(config)).unwrap();
                 }
                 Err(_) => debug!("Failed to parse message"),
             },
