@@ -204,13 +204,13 @@ pub struct IncomingPickPlayer {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct IncomingPlayerSelectionVote {
+struct IncomingPlayerSelectionVote {
     wants_to_start: bool,
 }
 
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum IncomingMessage {
+enum IncomingMessage {
     LobbyPickPlayer(IncomingPickPlayer),
     GamePlayerSelectionVote(IncomingPlayerSelectionVote),
     GameEndTurn { turn: u32, col: usize },
