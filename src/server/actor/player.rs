@@ -38,6 +38,12 @@ impl<'a> OutgoingMessage<'a> {
         OutgoingLobbyLink::new(uuid, cfg).into()
     }
 
+    /// Constructs a new `OutgoingMessage::GamePlayerSelection`.
+    #[must_use]
+    pub fn game_player_selection(p1_voted: bool, p2_voted: bool) -> Self {
+        OutgoingPlayerSelection { p1_voted, p2_voted }.into()
+    }
+
     /// Attempts to convert the message into a `SerializedOutgoingMessage`.
     pub fn into_serialized(self) -> Result<SerializedOutgoingMessage, serde_json::Error> {
         self.try_into()
