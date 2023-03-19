@@ -22,10 +22,6 @@ use crate::server::{
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct LobbyLink(pub Uuid);
-
-#[derive(Message)]
-#[rtype(result = "()")]
 pub struct LobbySync(pub Vec<u8>);
 
 #[derive(Message)]
@@ -310,21 +306,6 @@ impl Handler<AttachController> for Player {
     fn handle(&mut self, msg: AttachController, _: &mut Self::Context) {
         self.controller = Some(msg.0);
         debug!("Controller attached");
-    }
-}
-
-impl Handler<LobbyLink> for Player {
-    type Result = ();
-
-    fn handle(&mut self, msg: LobbyLink, ctx: &mut Self::Context) {
-        let msg: OutgoingMessage = OutgoingLobbyLink::new(msg.0, &self.cfg).into();
-        let Ok(msg): Result<SerializedOutgoingMessage, _> = msg.try_into() else {
-            error!("Failed to convert lobby link message");
-            return;
-        };
-
-        Handler::handle(self, msg, ctx);
-        debug!("Lobby link sent");
     }
 }
 
