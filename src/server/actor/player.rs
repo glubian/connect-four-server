@@ -39,7 +39,7 @@ pub struct GameRole(pub game::Player);
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum OutgoingMessage<'a> {
-    LobbyLink(OutgoingLobbyLink<'a>),
+    LobbyLink(OutgoingLobbyLink),
     LobbySync { players: &'a [u8] },
     LobbyCode { code: u8 },
     GameRole { role: game::Player },
@@ -61,14 +61,31 @@ impl<'a> OutgoingMessage<'a> {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OutgoingLobbyLink<'a> {
-    pub lobby: &'a str,
-    pub qr_code: QR,
+pub struct OutgoingLobbyLink {
+    lobby: String,
+    qr_code: QR,
 }
 
-impl<'a> From<OutgoingLobbyLink<'a>> for OutgoingMessage<'a> {
-    fn from(value: OutgoingLobbyLink<'a>) -> Self {
-        Self::LobbyLink(value)
+impl OutgoingLobbyLink {
+    #[must_use]
+    pub fn new(uuid: Uuid, cfg: &AppConfig) -> Self {
+        fn generate_lobby_url(app_config: &AppConfig, lobby_id: &str) -> String {
+            use qstring::QString;
+            let mut url = app_config.url_base.clone();
+            let query = QString::new(vec![(&app_config.url_lobby_parameter, lobby_id)]);
+            url.set_query(Some(&query.to_string()));
+            url.into()
+        }
+
+        let lobby = uuid.as_hyphenated().to_string();
+        let qr_code = QR::generate(&generate_lobby_url(cfg, &lobby)).unwrap_or_default();
+        Self { lobby, qr_code }
+    }
+}
+
+impl<'a> From<OutgoingLobbyLink> for OutgoingMessage<'a> {
+    fn from(msg: OutgoingLobbyLink) -> Self {
+        Self::LobbyLink(msg)
     }
 }
 
@@ -86,9 +103,33 @@ impl<'a> From<OutgoingPlayerSelection> for OutgoingMessage<'a> {
 }
 
 #[derive(Serialize, Default)]
-pub struct QR {
-    pub img: String,
-    pub width: usize,
+struct QR {
+    img: String,
+    width: usize,
+}
+
+impl QR {
+    fn generate(contents: &str) -> Result<Self, ()> {
+        use image::{png::PngEncoder, ColorType, Luma};
+        use qrcode::{EcLevel, QrCode};
+        let mut img = Vec::new();
+
+        let qr = QrCode::with_error_correction_level(contents, EcLevel::L).map_err(|_| ())?;
+        let img_buf = qr
+            .render::<Luma<u8>>()
+            .max_dimensions(200, 200)
+            .quiet_zone(false)
+            .build();
+
+        PngEncoder::new(&mut img)
+            .encode(&img_buf, img_buf.width(), img_buf.height(), ColorType::L8)
+            .map_err(|_| ())?;
+
+        Ok(Self {
+            img: base64::encode(&img),
+            width: qr.width(),
+        })
+    }
 }
 
 // Incoming messages
@@ -255,6 +296,8 @@ impl Actor for Player {
     }
 }
 
+// Handlers
+
 impl Handler<AttachController> for Player {
     type Result = ();
 
@@ -264,60 +307,17 @@ impl Handler<AttachController> for Player {
     }
 }
 
-// LobbyLink utilities
-
-fn generate_lobby_url(app_config: &AppConfig, lobby_id: &str) -> String {
-    use qstring::QString;
-    let mut url = app_config.url_base.clone();
-    let query = QString::new(vec![(&app_config.url_lobby_parameter, lobby_id)]);
-    url.set_query(Some(&query.to_string()));
-    url.into()
-}
-
-impl QR {
-    fn generate(contents: &str) -> Result<Self, ()> {
-        use image::{png::PngEncoder, ColorType, Luma};
-        use qrcode::{EcLevel, QrCode};
-        let mut img = Vec::new();
-
-        let qr = QrCode::with_error_correction_level(contents, EcLevel::L).map_err(|_| ())?;
-        let img_buf = qr
-            .render::<Luma<u8>>()
-            .max_dimensions(200, 200)
-            .quiet_zone(false)
-            .build();
-
-        PngEncoder::new(&mut img)
-            .encode(&img_buf, img_buf.width(), img_buf.height(), ColorType::L8)
-            .map_err(|_| ())?;
-
-        Ok(Self {
-            img: base64::encode(&img),
-            width: qr.width(),
-        })
-    }
-}
-
 impl Handler<LobbyLink> for Player {
     type Result = ();
 
     fn handle(&mut self, msg: LobbyLink, ctx: &mut Self::Context) {
-        let mut buf = Uuid::encode_buffer();
-        let lobby_id = msg.0.hyphenated().encode_lower(&mut buf);
-
-        let qr_code = QR::generate(&generate_lobby_url(&self.cfg, lobby_id)).unwrap_or_default();
-        let msg: OutgoingMessage = OutgoingLobbyLink {
-            lobby: lobby_id,
-            qr_code,
-        }
-        .into();
-
-        let Ok(msg) = serde_json::to_string(&msg) else {
+        let msg: OutgoingMessage = OutgoingLobbyLink::new(msg.0, &self.cfg).into();
+        let Ok(msg): Result<SerializedOutgoingMessage, _> = msg.try_into() else {
             error!("Failed to convert lobby link message");
             return;
         };
 
-        ctx.text(msg);
+        Handler::handle(self, msg, ctx);
         debug!("Lobby link sent");
     }
 }
