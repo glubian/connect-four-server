@@ -148,8 +148,7 @@ impl Game {
 
     fn sync(&self) {
         let round = self.round;
-        let res: Result<SharedOutgoingMessage, _> = self.stage.outgoing_message(round).try_into();
-        let Ok(sync1) = res else { return };
+        let Ok(sync1) = self.stage.outgoing_message(round).into_shared() else { return };
         let sync2 = sync1.clone();
         self.p1.do_send(sync1);
         self.p2.do_send(sync2);
