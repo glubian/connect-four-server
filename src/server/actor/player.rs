@@ -20,10 +20,6 @@ use crate::server::{
 
 // Outgoing messages
 
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct LobbyCode(pub u8);
-
 #[derive(Message, Clone)]
 #[rtype(result = "()")]
 pub struct GameRole(pub game::Player);
@@ -302,20 +298,6 @@ impl Handler<AttachController> for Player {
     fn handle(&mut self, msg: AttachController, _: &mut Self::Context) {
         self.controller = Some(msg.0);
         debug!("Controller attached");
-    }
-}
-
-impl Handler<LobbyCode> for Player {
-    type Result = ();
-
-    fn handle(&mut self, msg: LobbyCode, ctx: &mut Self::Context) {
-        let Ok(msg) = serde_json::to_string(&OutgoingMessage::LobbyCode { code: msg.0 }) else {
-            error!("Failed to convert lobby code message");
-            return;
-        };
-
-        ctx.text(msg);
-        debug!("Lobby code sent");
     }
 }
 

@@ -17,8 +17,7 @@ use crate::{
             self,
             lobby_router::RemoveLobby,
             player::{
-                AttachController, Disconnect, Disconnected, IncomingPickPlayer, LobbyCode,
-                OutgoingMessage,
+                AttachController, Disconnect, Disconnected, IncomingPickPlayer, OutgoingMessage,
             },
         },
         AppConfig,
@@ -177,7 +176,13 @@ impl Handler<ConnectPlayer> for Lobby {
             return;
         };
 
-        player.do_send(LobbyCode(id));
+        let Ok(msg) = OutgoingMessage::LobbyCode { code: id }.into_serialized() else {
+            player.do_send(Disconnect::LobbyJoinError);
+            error!("Failed to serialize lobby code message");
+            return;
+        };
+
+        player.do_send(msg);
         self.players.insert(id, player);
         self.schedule_player_list_sync(ctx);
         debug!("Player {} has joined", id);
