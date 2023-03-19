@@ -47,6 +47,18 @@ pub enum OutgoingMessage<'a> {
     GameSync { round: u32, game: &'a Game },
 }
 
+impl<'a> OutgoingMessage<'a> {
+    /// Attempts to convert the message into a `SerializedOutgoingMessage`.
+    pub fn into_serialized(self) -> Result<SerializedOutgoingMessage, serde_json::Error> {
+        self.try_into()
+    }
+
+    /// Attempts to convert the message into a `SharedOutgoingMessage`.
+    pub fn into_shared(self) -> Result<SharedOutgoingMessage, serde_json::Error> {
+        self.try_into()
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OutgoingLobbyLink<'a> {
