@@ -1,6 +1,6 @@
 use actix::prelude::*;
 use actix_web::Either;
-use log::debug;
+use log::{debug, error};
 use rand::Rng;
 
 use crate::game::Game as InternalGame;
@@ -9,7 +9,7 @@ use crate::game::{GameRules, Player};
 use crate::game_config::GameConfig;
 use crate::server::actor;
 use actor::player::{
-    AttachController, Disconnect, Disconnected, GameRole, OutgoingMessage, OutgoingPlayerSelection,
+    AttachController, Disconnect, Disconnected, OutgoingMessage, OutgoingPlayerSelection,
     SharedOutgoingMessage,
 };
 
@@ -173,8 +173,20 @@ impl Actor for Game {
             return;
         }
 
-        self.p1.do_send(GameRole(Player::P1));
-        self.p2.do_send(GameRole(Player::P2));
+        let Ok(p1_role_msg) = OutgoingMessage::GameRole { role: Player::P1 }.into_serialized() else {
+            error!("Failed to serialize game role message, shutting down");
+            ctx.stop();
+            return;
+        };
+
+        let Ok(p2_role_msg) = OutgoingMessage::GameRole { role: Player::P2 }.into_serialized() else {
+            error!("Failed to serialize game role message, shutting down");
+            ctx.stop();
+            return;
+        };
+
+        self.p1.do_send(p1_role_msg);
+        self.p2.do_send(p2_role_msg);
         self.sync();
         debug!("Started");
     }

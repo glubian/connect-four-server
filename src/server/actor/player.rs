@@ -20,10 +20,6 @@ use crate::server::{
 
 // Outgoing messages
 
-#[derive(Message, Clone)]
-#[rtype(result = "()")]
-pub struct GameRole(pub game::Player);
-
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum OutgoingMessage<'a> {
@@ -298,20 +294,6 @@ impl Handler<AttachController> for Player {
     fn handle(&mut self, msg: AttachController, _: &mut Self::Context) {
         self.controller = Some(msg.0);
         debug!("Controller attached");
-    }
-}
-
-impl Handler<GameRole> for Player {
-    type Result = ();
-
-    fn handle(&mut self, msg: GameRole, ctx: &mut Self::Context) {
-        let Ok(msg) = serde_json::to_string(&OutgoingMessage::GameRole { role: msg.0 }) else {
-            error!("Failed to convert game role message");
-            return;
-        };
-
-        ctx.text(msg);
-        debug!("Game role sent");
     }
 }
 
