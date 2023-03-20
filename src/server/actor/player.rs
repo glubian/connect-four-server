@@ -19,6 +19,8 @@ use crate::server::{
     config::AppConfig,
 };
 
+const ISO_8601_TIMESTAMP: &str = "%Y-%m-%dT%H:%M:%S%.3fZ";
+
 // Outgoing messages
 
 #[derive(Serialize)]
@@ -135,8 +137,7 @@ impl<'a> OutgoingGameSetup<'a> {
 
     #[must_use]
     pub fn set_timestamp(mut self) -> Self {
-        // Conform to the ISO 8601 format: YYYY-MM-DDTHH:mm:ss.sssZ
-        self.timestamp = Some(Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string());
+        self.timestamp = Some(Utc::now().format(ISO_8601_TIMESTAMP).to_string());
         self
     }
 }
