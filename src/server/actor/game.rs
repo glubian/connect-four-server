@@ -1,5 +1,9 @@
+use std::ops::{Index, IndexMut};
+use std::time::Duration;
+
 use actix::prelude::*;
 use actix_web::Either;
+use chrono::{DateTime, Utc};
 use log::{debug, error};
 use rand::Rng;
 
@@ -8,7 +12,9 @@ use crate::game::{GameRules, Player};
 
 use crate::game_config::{GameConfig, PartialGameConfig};
 use crate::server::actor;
-use actor::player::{AttachController, Disconnect, Disconnected, OutgoingMessage};
+use actor::player::{self, AttachController, Disconnect, Disconnected, OutgoingMessage};
+
+const RESTART_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -27,20 +33,28 @@ pub struct EndTurn {
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct Restart(pub Option<PartialGameConfig>);
+pub struct Restart {
+    pub addr: Addr<actor::Player>,
+    pub partial: Option<PartialGameConfig>,
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct RestartResponse {
+    pub addr: Addr<actor::Player>,
+    pub accepted: bool,
+}
 
 struct PlayerSelectionStage {
     p1_vote: Option<bool>,
     p2_vote: Option<bool>,
-    config: GameConfig,
 }
 
 impl PlayerSelectionStage {
-    fn new(config: GameConfig) -> Self {
+    fn new() -> Self {
         Self {
             p1_vote: None,
             p2_vote: None,
-            config,
         }
     }
 }
@@ -79,6 +93,14 @@ enum GameStage {
 }
 
 impl GameStage {
+    fn is_game_over(&self) -> bool {
+        if let Self::InGame(InGameStage { game }) = self {
+            game.state().result.is_some()
+        } else {
+            false
+        }
+    }
+
     fn outgoing_message(&self, round: u32) -> OutgoingMessage {
         match self {
             Self::PlayerSelection(stage) => {
@@ -106,11 +128,61 @@ impl From<InGameStage> for GameStage {
     }
 }
 
+/// Restart request with optional changes to the config.
+struct RestartRequest {
+    /// Changed config.
+    config: Option<GameConfig>,
+    /// Timeout handle.
+    handle: SpawnHandle,
+    /// Timeout timestamp.
+    timestamp: DateTime<Utc>,
+}
+
+impl RestartRequest {
+    fn to_outgoing(&self) -> player::RestartRequest {
+        player::RestartRequest::new(self.config.as_ref(), self.timestamp)
+    }
+}
+
+/// Stores one type T per player. Can be accessed by passing `Player` as index.
+struct PlayerTuple<T>([T; 2]);
+
+impl<T> PlayerTuple<T> {
+    #[must_use]
+    const fn new(tuple: [T; 2]) -> Self {
+        Self(tuple)
+    }
+}
+
+impl<T> From<[T; 2]> for PlayerTuple<T> {
+    fn from(tuple: [T; 2]) -> Self {
+        Self(tuple)
+    }
+}
+
+impl<T> Index<Player> for PlayerTuple<T> {
+    type Output = T;
+
+    fn index(&self, player: Player) -> &Self::Output {
+        &self.0[player as usize]
+    }
+}
+
+impl<T> IndexMut<Player> for PlayerTuple<T> {
+    fn index_mut(&mut self, player: Player) -> &mut Self::Output {
+        &mut self.0[player as usize]
+    }
+}
+
 pub struct Game {
     stage: GameStage,
     round: u32,
+    config: GameConfig,
+
     p1: Addr<actor::Player>,
     p2: Addr<actor::Player>,
+
+    restart_requests: PlayerTuple<Option<RestartRequest>>,
 }
 
 impl Game {
@@ -125,14 +197,16 @@ impl Game {
         let stage = if let Some(game) = game {
             InGameStage { game }.into()
         } else {
-            PlayerSelectionStage::new(config).into()
+            PlayerSelectionStage::new().into()
         };
 
         Self {
             stage,
             round,
+            config,
             p1,
             p2,
+            restart_requests: PlayerTuple::new([None, None]),
         }
     }
 
@@ -143,12 +217,124 @@ impl Game {
         }
     }
 
+    /// Returns which player the address belongs to, or None if the address
+    /// does not belong to either player in this instance.
+    fn get_player(&self, player_addr: &Addr<actor::Player>) -> Option<Player> {
+        if &self.p1 == player_addr {
+            Some(Player::P1)
+        } else if &self.p2 == player_addr {
+            Some(Player::P2)
+        } else {
+            None
+        }
+    }
+
     fn sync(&self) {
         let round = self.round;
         let Ok(sync1) = self.stage.outgoing_message(round).into_shared() else { return };
         let sync2 = sync1.clone();
         self.p1.do_send(sync1);
         self.p2.do_send(sync2);
+    }
+
+    /// Sends `OutgoingMessage::GameRestartRequest` to both players.
+    fn sync_restart_request(&self, player: Player) {
+        let req = &self.restart_requests[player];
+        let player_req = req.as_ref().map(RestartRequest::to_outgoing);
+        let msg1 = OutgoingMessage::game_restart_request(player, player_req).into_shared();
+        let Ok(msg1) = msg1 else {
+            error!("Failed to serialize game restart request message");
+            return;
+        };
+        let msg2 = msg1.clone();
+        self.p1.do_send(msg1);
+        self.p2.do_send(msg2);
+    }
+
+    /// Applies configuration from the restart request.
+    fn accept_restart_request(&mut self, player: Player, ctx: &mut Context<Self>) {
+        let Some(req) = self.restart_requests[player].take() else { return };
+        self.dismiss_duplicate_restart_requests(ctx);
+        ctx.cancel_future(req.handle);
+        if let Some(config) = req.config {
+            self.config = config;
+        }
+        self.sync_restart_request(player);
+    }
+
+    /// Rejects the request to restart the game.
+    fn reject_restart_request(&mut self, player: Player, ctx: &mut Context<Self>) {
+        let Some(req) = self.restart_requests[player].take() else { return };
+        ctx.cancel_future(req.handle);
+        self.sync_restart_request(player);
+    }
+
+    /// Deletes the restart request made by player 1.
+    fn on_p1_request_timeout(&mut self, _: &mut Context<Self>) {
+        self.restart_requests[Player::P1].take();
+        self.sync_restart_request(Player::P1);
+    }
+
+    /// Deletes the restart request made by player 2.
+    fn on_p2_request_timeout(&mut self, _: &mut Context<Self>) {
+        self.restart_requests[Player::P2].take();
+        self.sync_restart_request(Player::P2);
+    }
+
+    /// Creates a new restart request.
+    fn create_restart_request(
+        player: Player,
+        config: Option<GameConfig>,
+        ctx: &mut Context<Self>,
+    ) -> RestartRequest {
+        let handle = match player {
+            Player::P1 => ctx.run_later(RESTART_REQUEST_TIMEOUT, Self::on_p1_request_timeout),
+            Player::P2 => ctx.run_later(RESTART_REQUEST_TIMEOUT, Self::on_p2_request_timeout),
+        };
+        let timeout = chrono::Duration::from_std(RESTART_REQUEST_TIMEOUT)
+            .unwrap_or_else(|_| chrono::Duration::zero());
+        let timestamp = Utc::now() + timeout;
+        RestartRequest {
+            config,
+            handle,
+            timestamp,
+        }
+    }
+
+    /// Dismisses restart requests that do not change the current config.
+    fn dismiss_duplicate_restart_requests(&mut self, ctx: &mut Context<Self>) {
+        for player in [Player::P1, Player::P2] {
+            let Some(req) = self.restart_requests[player].as_ref() else { continue };
+            let req_config = req.config.as_ref();
+            if req_config.map_or(false, |c| c == &self.config) {
+                let req = self.restart_requests[player].take().unwrap();
+                ctx.cancel_future(req.handle);
+                self.sync_restart_request(player);
+            }
+        }
+    }
+
+    /// Dismisses the previous request and creates a new one.
+    fn update_restart_request(
+        &mut self,
+        config: Option<GameConfig>,
+        player: Player,
+        ctx: &mut Context<Self>,
+    ) {
+        if let Some(req) = self.restart_requests[player].take() {
+            ctx.cancel_future(req.handle);
+        }
+        self.restart_requests[player] = Some(Self::create_restart_request(player, config, ctx));
+        self.sync_restart_request(player);
+    }
+
+    /// Restarts the game.
+    fn restart(&mut self, ctx: &mut Context<Self>) {
+        self.dismiss_duplicate_restart_requests(ctx);
+        self.stage = PlayerSelectionStage::new().into();
+        self.round = self.round.wrapping_add(1);
+        self.sync();
+        debug!("Restarted");
     }
 }
 
@@ -238,7 +424,7 @@ impl Handler<PlayerSelectionVote> for Game {
             ..
         } = *stage
         {
-            self.stage = InGameStage::new(p1_vote, p2_vote, &stage.config).into();
+            self.stage = InGameStage::new(p1_vote, p2_vote, &self.config).into();
         }
 
         self.sync();
@@ -273,19 +459,38 @@ impl Handler<EndTurn> for Game {
 impl Handler<Restart> for Game {
     type Result = ();
 
-    fn handle(&mut self, Restart(partial): Restart, _: &mut Self::Context) {
-        let mut config = match &self.stage {
-            GameStage::PlayerSelection(stage) => stage.config.clone(),
-            GameStage::InGame(InGameStage { game }) => GameConfig::from_game_rules(game.rules()),
-        };
-
-        if let Some(partial) = &partial {
-            config.apply_partial(partial);
+    fn handle(&mut self, Restart { addr, partial }: Restart, ctx: &mut Self::Context) {
+        let player = self.get_player(&addr).unwrap();
+        if let Some(partial) = partial {
+            let mut config = self.config.clone();
+            config.apply_partial(&partial);
+            if self.config == config {
+                if self.stage.is_game_over() {
+                    self.restart(ctx);
+                } else {
+                    self.update_restart_request(None, player, ctx);
+                }
+            } else {
+                self.update_restart_request(Some(config), player, ctx);
+            }
+        } else if self.stage.is_game_over() {
+            self.restart(ctx);
+        } else {
+            self.update_restart_request(None, player, ctx);
         }
+    }
+}
 
-        self.stage = PlayerSelectionStage::new(config).into();
-        self.round = self.round.wrapping_add(1);
-        self.sync();
-        debug!("Restarted");
+impl Handler<RestartResponse> for Game {
+    type Result = ();
+
+    fn handle(&mut self, msg: RestartResponse, ctx: &mut Self::Context) {
+        let opponent = self.get_player(&msg.addr).unwrap().other();
+        if msg.accepted {
+            self.accept_restart_request(opponent, ctx);
+            self.restart(ctx);
+        } else {
+            self.reject_restart_request(opponent, ctx);
+        }
     }
 }

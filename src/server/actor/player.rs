@@ -3,14 +3,14 @@ use std::{sync::Arc, time::Instant};
 use actix::{prelude::*, WeakAddr};
 use actix_web::Either;
 use actix_web_actors::ws::{self, CloseReason};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::game::{self, Game};
 use crate::game_config::{GameConfig, PartialGameConfig};
-use crate::server::actor::game::PlayerSelectionVote;
+use crate::server::actor::game::{PlayerSelectionVote, RestartResponse};
 use crate::server::{
     actor::{
         self,
@@ -32,6 +32,7 @@ pub enum OutgoingMessage<'a> {
     GameSetup(OutgoingGameSetup<'a>),
     GamePlayerSelection(OutgoingPlayerSelection),
     GameSync { round: u32, game: &'a Game },
+    GameRestartRequest(OutgoingRestartRequest<'a>),
 }
 
 impl<'a> OutgoingMessage<'a> {
@@ -59,6 +60,12 @@ impl<'a> OutgoingMessage<'a> {
     #[must_use]
     pub fn game_player_selection(p1_voted: bool, p2_voted: bool) -> Self {
         OutgoingPlayerSelection { p1_voted, p2_voted }.into()
+    }
+
+    /// Constructs a new `OutgoingMessage::GameRestartRequest`.
+    #[must_use]
+    pub fn game_restart_request(player: game::Player, req: Option<RestartRequest<'a>>) -> Self {
+        OutgoingRestartRequest { player, req }.into()
     }
 
     /// Attempts to convert the message into a `SerializedOutgoingMessage`.
@@ -161,6 +168,42 @@ impl<'a> From<OutgoingPlayerSelection> for OutgoingMessage<'a> {
     }
 }
 
+/// Updates the status of restart request of the given player.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutgoingRestartRequest<'a> {
+    /// Player who made the request.
+    player: game::Player,
+    /// Restart request details; `None` if it expired.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    req: Option<RestartRequest<'a>>,
+}
+
+impl<'a> From<OutgoingRestartRequest<'a>> for OutgoingMessage<'a> {
+    fn from(msg: OutgoingRestartRequest<'a>) -> Self {
+        Self::GameRestartRequest(msg)
+    }
+}
+
+/// Restart request made when the game cannot be restarted without asking
+/// the permission of the opponent first.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestartRequest<'a> {
+    /// Changed configuration, if any.
+    config: Option<&'a GameConfig>,
+    /// ISO 8601 timestamp of when the restart request will expire.
+    timeout: String,
+}
+
+impl<'a> RestartRequest<'a> {
+    #[must_use]
+    pub fn new(config: Option<&'a GameConfig>, timeout: DateTime<Utc>) -> Self {
+        let timeout = timeout.format(ISO_8601_TIMESTAMP).to_string();
+        Self { config, timeout }
+    }
+}
+
 #[derive(Serialize, Default)]
 struct QR {
     img: String,
@@ -213,7 +256,7 @@ struct IncomingPlayerSelectionVote {
 #[serde(rename_all = "camelCase")]
 struct IncomingRestart {
     #[serde(flatten)]
-    config: Option<PartialGameConfig>,
+    partial: Option<PartialGameConfig>,
 }
 
 #[derive(Deserialize)]
@@ -223,6 +266,7 @@ enum IncomingMessage {
     GamePlayerSelectionVote(IncomingPlayerSelectionVote),
     GameEndTurn { turn: u32, col: usize },
     GameRestart(IncomingRestart),
+    GameRestartResponse { accepted: bool },
 }
 
 // Internal messages
@@ -420,13 +464,29 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Player {
                     })
                     .unwrap();
                 }
-                Ok(IncomingMessage::GameRestart(IncomingRestart { config })) => {
+                Ok(IncomingMessage::GameRestart(IncomingRestart { partial })) => {
                     let Some(Right(game)) = &self.controller else {
                         debug!("Received IncomingMessage::GameRestart, but no controller is attached!");
                         return;
                     };
                     debug!("Received IncomingMessage::GameRestart");
-                    game.try_send(Restart(config)).unwrap();
+                    game.try_send(Restart {
+                        addr: ctx.address(),
+                        partial,
+                    })
+                    .unwrap();
+                }
+                Ok(IncomingMessage::GameRestartResponse { accepted }) => {
+                    let Some(Right(game)) = &self.controller else {
+                        debug!("Received IncomingMessage::GameRestartVote, but no controller is attached!");
+                        return;
+                    };
+                    debug!("Received IncomingMessage::GameRestartVote");
+                    game.try_send(RestartResponse {
+                        addr: ctx.address(),
+                        accepted,
+                    })
+                    .unwrap();
                 }
                 Err(_) => debug!("Failed to parse message"),
             },

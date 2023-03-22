@@ -65,3 +65,9 @@ impl From<GameConfig> for PartialGameConfig {
         Self::from_full(&config)
     }
 }
+
+impl PartialEq for GameConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.allow_draws == other.allow_draws
+    }
+}
