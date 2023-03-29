@@ -3,6 +3,7 @@ use std::{sync::Arc, time::Instant};
 use actix::{prelude::*, WeakAddr};
 use actix_web::Either;
 use actix_web_actors::ws::{self, CloseReason};
+use bytestring::ByteString;
 use chrono::{DateTime, Utc};
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
@@ -373,6 +374,75 @@ impl Player {
             cfg: app_config,
         }
     }
+
+    fn handle_text_message(&self, text: &ByteString, ctx: &mut ws::WebsocketContext<Self>) {
+        use Either::*;
+
+        let Ok(msg) = serde_json::from_str::<IncomingMessage>(text) else {
+            debug!("Failed to parse message!");
+            return;
+        };
+
+        match msg {
+            IncomingMessage::LobbyPickPlayer(msg) => {
+                let Some(Left(lobby)) = &self.controller else {
+                    debug!("Received IncomingMessage::LobbyPickPlayer, but no controller is attached!");
+                    return;
+                };
+                debug!("Received IncomingMessage::LobbyPickPlayer");
+                lobby.try_send(msg).unwrap();
+            }
+            IncomingMessage::GamePlayerSelectionVote(msg) => {
+                let Some(Right(game)) = &self.controller else {
+                    debug!("Received IncomingMessage::GamePlayerSelectionVote, but no controller is attached!");
+                    return;
+                };
+                debug!("Received IncomingMessage::GamePlayerSelectionVote");
+                game.try_send(PlayerSelectionVote {
+                    player: ctx.address(),
+                    wants_to_start: msg.wants_to_start,
+                })
+                .unwrap();
+            }
+            IncomingMessage::GameEndTurn { turn, col } => {
+                let Some(Right(game)) = &self.controller else {
+                    debug!("Received IncomingMessage::GameEndTurn, but no controller is attached!");
+                    return;
+                };
+                debug!("Received IncomingMessage::GameEndTurn");
+                game.try_send(EndTurn {
+                    player: ctx.address(),
+                    turn,
+                    col,
+                })
+                .unwrap();
+            }
+            IncomingMessage::GameRestart(IncomingRestart { partial }) => {
+                let Some(Right(game)) = &self.controller else {
+                    debug!("Received IncomingMessage::GameRestart, but no controller is attached!");
+                    return;
+                };
+                debug!("Received IncomingMessage::GameRestart");
+                game.try_send(Restart {
+                    addr: ctx.address(),
+                    partial,
+                })
+                .unwrap();
+            }
+            IncomingMessage::GameRestartResponse { accepted } => {
+                let Some(Right(game)) = &self.controller else {
+                    debug!("Received IncomingMessage::GameRestartVote, but no controller is attached!");
+                    return;
+                };
+                debug!("Received IncomingMessage::GameRestartVote");
+                game.try_send(RestartResponse {
+                    addr: ctx.address(),
+                    accepted,
+                })
+                .unwrap();
+            }
+        }
+    }
 }
 
 impl Actor for Player {
@@ -419,8 +489,6 @@ impl Handler<AttachController> for Player {
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Player {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        use Either::*;
-
         let Ok(msg) = msg else {
             error!("WebSocket protocol error");
             ctx.stop();
@@ -428,79 +496,20 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Player {
         };
 
         match msg {
-            ws::Message::Ping(msg) => ctx.pong(&msg),
-            ws::Message::Pong(_) => self.hb = Instant::now(),
-            ws::Message::Text(text) => match serde_json::from_str::<IncomingMessage>(&text) {
-                Ok(IncomingMessage::LobbyPickPlayer(msg)) => {
-                    let Some(Left(lobby)) = &self.controller else {
-                        debug!("Received IncomingMessage::LobbyPickPlayer, but no controller is attached!");
-                        return;
-                    };
-                    debug!("Received IncomingMessage::LobbyPickPlayer");
-                    lobby.try_send(msg).unwrap();
-                }
-                Ok(IncomingMessage::GamePlayerSelectionVote(msg)) => {
-                    let Some(Right(game)) = &self.controller else {
-                        debug!("Received IncomingMessage::GamePlayerSelectionVote, but no controller is attached!");
-                        return;
-                    };
-                    debug!("Received IncomingMessage::GamePlayerSelectionVote");
-                    game.try_send(PlayerSelectionVote {
-                        player: ctx.address(),
-                        wants_to_start: msg.wants_to_start,
-                    })
-                    .unwrap();
-                }
-                Ok(IncomingMessage::GameEndTurn { turn, col }) => {
-                    let Some(Right(game)) = &self.controller else {
-                        debug!("Received IncomingMessage::GameEndTurn, but no controller is attached!");
-                        return;
-                    };
-                    debug!("Received IncomingMessage::GameEndTurn");
-                    game.try_send(EndTurn {
-                        player: ctx.address(),
-                        turn,
-                        col,
-                    })
-                    .unwrap();
-                }
-                Ok(IncomingMessage::GameRestart(IncomingRestart { partial })) => {
-                    let Some(Right(game)) = &self.controller else {
-                        debug!("Received IncomingMessage::GameRestart, but no controller is attached!");
-                        return;
-                    };
-                    debug!("Received IncomingMessage::GameRestart");
-                    game.try_send(Restart {
-                        addr: ctx.address(),
-                        partial,
-                    })
-                    .unwrap();
-                }
-                Ok(IncomingMessage::GameRestartResponse { accepted }) => {
-                    let Some(Right(game)) = &self.controller else {
-                        debug!("Received IncomingMessage::GameRestartVote, but no controller is attached!");
-                        return;
-                    };
-                    debug!("Received IncomingMessage::GameRestartVote");
-                    game.try_send(RestartResponse {
-                        addr: ctx.address(),
-                        accepted,
-                    })
-                    .unwrap();
-                }
-                Err(_) => debug!("Failed to parse message"),
-            },
-            ws::Message::Binary(_) => (),
+            ws::Message::Text(text) => self.handle_text_message(&text, ctx),
+            ws::Message::Continuation(_) => {
+                ctx.close(Some(ws::CloseCode::Unsupported.into()));
+                ctx.stop();
+            }
             ws::Message::Close(reason) => {
                 debug!("Connection closed");
                 ctx.close(reason);
                 ctx.stop();
             }
-            ws::Message::Continuation(_) => {
-                ctx.close(Some(ws::CloseCode::Unsupported.into()));
-                ctx.stop();
-            }
-            ws::Message::Nop => (),
+            ws::Message::Ping(_)
+            | ws::Message::Pong(_)
+            | ws::Message::Binary(_)
+            | ws::Message::Nop => (),
         }
     }
 }
