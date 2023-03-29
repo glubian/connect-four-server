@@ -251,6 +251,17 @@ impl Game {
         self.p2.do_send(msg2);
     }
 
+    /// Sends `OutgoingMessage::GameSetup` containing the current configuration.
+    fn sync_config(&self) {
+        let msg: OutgoingMessage = OutgoingMessage::game_setup()
+            .set_config(&self.config)
+            .into();
+        let msg1 = msg.into_shared().unwrap();
+        let msg2 = msg1.clone();
+        self.p1.do_send(msg1);
+        self.p2.do_send(msg2);
+    }
+
     /// Applies configuration from the restart request.
     fn accept_restart_request(&mut self, player: Player, ctx: &mut Context<Self>) {
         let Some(req) = self.restart_requests[player].take() else { return };
@@ -258,6 +269,7 @@ impl Game {
         ctx.cancel_future(req.handle);
         if let Some(config) = req.config {
             self.config = config;
+            self.sync_config();
         }
         self.sync_restart_request(player);
     }
