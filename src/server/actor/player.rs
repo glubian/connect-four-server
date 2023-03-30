@@ -34,6 +34,7 @@ pub enum OutgoingMessage<'a> {
     GamePlayerSelection(OutgoingPlayerSelection),
     GameSync { round: u32, game: &'a Game },
     GameRestartRequest(OutgoingRestartRequest<'a>),
+    Pong { sent: f64, received: String },
 }
 
 impl<'a> OutgoingMessage<'a> {
@@ -268,6 +269,7 @@ enum IncomingMessage {
     GameEndTurn { turn: u32, col: usize },
     GameRestart(IncomingRestart),
     GameRestartResponse { accepted: bool },
+    Ping { sent: f64 },
 }
 
 // Internal messages
@@ -375,13 +377,15 @@ impl Player {
         }
     }
 
-    fn handle_text_message(&self, text: &ByteString, ctx: &mut ws::WebsocketContext<Self>) {
+    fn handle_text_message(&mut self, text: &ByteString, ctx: &mut ws::WebsocketContext<Self>) {
         use Either::*;
 
         let Ok(msg) = serde_json::from_str::<IncomingMessage>(text) else {
             debug!("Failed to parse message!");
             return;
         };
+
+        self.hb = Instant::now();
 
         match msg {
             IncomingMessage::LobbyPickPlayer(msg) => {
@@ -440,6 +444,15 @@ impl Player {
                     accepted,
                 })
                 .unwrap();
+            }
+            IncomingMessage::Ping { sent } => {
+                let received = Utc::now().format(ISO_8601_TIMESTAMP).to_string();
+                // Fail silently just to be safe
+                let Ok(msg) = serde_json::to_string(&OutgoingMessage::Pong { sent, received }) else {
+                    debug!("Failed to serialize message");
+                    return;
+                };
+                ctx.text(msg);
             }
         }
     }
