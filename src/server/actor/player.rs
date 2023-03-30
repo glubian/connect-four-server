@@ -506,8 +506,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Player {
                 ctx.close(reason);
                 ctx.stop();
             }
+            ws::Message::Pong(_) => self.hb = Instant::now(),
             ws::Message::Ping(_)
-            | ws::Message::Pong(_)
             | ws::Message::Binary(_)
             | ws::Message::Nop => (),
         }
