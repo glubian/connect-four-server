@@ -1,22 +1,20 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    game::GameRules,
-    wrap::{OptionalFields, RequiredFields, Wrap},
-};
-
-/// Internally used to generate different versions of `GameConfig`
-/// with fields wrapped in different types.
-#[derive(Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct GenGameConfig<W: Wrap> {
-    pub allow_draws: W::Wrapped<bool>,
-}
+use crate::game::GameRules;
 
 /// A subset of `GameRules` used for starting a new game.
-pub type GameConfig = GenGameConfig<RequiredFields>;
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GameConfig {
+    pub allow_draws: bool,
+}
+
 /// A subset of `GameRules` used for starting a new game. All fields are optional.
-pub type PartialGameConfig = GenGameConfig<OptionalFields>;
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PartialGameConfig {
+    pub allow_draws: Option<bool>,
+}
 
 impl GameConfig {
     /// Create a new `GameConfig` with values copied from `PartialGameConfig`,
