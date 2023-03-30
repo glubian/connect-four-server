@@ -1,11 +1,17 @@
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
-use crate::game::GameRules;
+use crate::server::serde::{as_secs, as_secs_optional};
 
 /// A subset of `GameRules` used for starting a new game.
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GameConfig {
+    #[serde(with = "as_secs")]
+    pub time_per_turn: Duration,
+    #[serde(with = "as_secs")]
+    pub time_cap: Duration,
     pub allow_draws: bool,
 }
 
@@ -13,6 +19,11 @@ pub struct GameConfig {
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PartialGameConfig {
+    #[serde(with = "as_secs_optional", skip_serializing_if = "Option::is_none")]
+    pub time_per_turn: Option<Duration>,
+    #[serde(with = "as_secs_optional", skip_serializing_if = "Option::is_none")]
+    pub time_cap: Option<Duration>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_draws: Option<bool>,
 }
 
@@ -22,20 +33,22 @@ impl GameConfig {
     #[must_use]
     pub fn from_partial(partial: &PartialGameConfig) -> Self {
         Self {
+            time_per_turn: partial.time_per_turn.unwrap_or_default(),
+            time_cap: partial.time_cap.unwrap_or_default(),
             allow_draws: partial.allow_draws.unwrap_or_default(),
-        }
-    }
-
-    /// Create a new `GameConfig` with values copied from `GameRules`.
-    #[must_use]
-    pub fn from_game_rules(rules: &GameRules) -> Self {
-        Self {
-            allow_draws: rules.allow_draws,
         }
     }
 
     /// Overwrites any settings contained within a `PartialGameConfig`.
     pub fn apply_partial(&mut self, partial: &PartialGameConfig) {
+        if let Some(time_per_turn) = partial.time_per_turn {
+            self.time_per_turn = time_per_turn;
+        }
+
+        if let Some(time_cap) = partial.time_cap {
+            self.time_cap = time_cap;
+        }
+
         if let Some(allow_draws) = partial.allow_draws {
             self.allow_draws = allow_draws;
         }
@@ -53,6 +66,8 @@ impl PartialGameConfig {
     #[must_use]
     fn from_full(config: &GameConfig) -> Self {
         Self {
+            time_per_turn: Some(config.time_per_turn),
+            time_cap: Some(config.time_cap),
             allow_draws: Some(config.allow_draws),
         }
     }
@@ -66,6 +81,8 @@ impl From<GameConfig> for PartialGameConfig {
 
 impl PartialEq for GameConfig {
     fn eq(&self, other: &Self) -> bool {
-        self.allow_draws == other.allow_draws
+        self.time_per_turn == other.time_per_turn
+            && self.time_cap == other.time_cap
+            && self.allow_draws == other.allow_draws
     }
 }
