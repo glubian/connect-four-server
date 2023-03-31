@@ -367,20 +367,14 @@ impl Actor for Game {
             return;
         }
 
-        let p1_role_msg: OutgoingMessage = OutgoingMessage::game_setup()
-            .set_role(Player::P1)
-            .set_timestamp()
-            .into();
+        let p1_role_msg = OutgoingMessage::full_game_setup(Player::P1, &self.config);
         let Ok(p1_role_msg) = p1_role_msg.into_serialized() else {
             error!("Failed to serialize game role message, shutting down");
             ctx.stop();
             return;
         };
 
-        let p2_role_msg: OutgoingMessage = OutgoingMessage::game_setup()
-            .set_role(Player::P2)
-            .set_timestamp()
-            .into();
+        let p2_role_msg = OutgoingMessage::full_game_setup(Player::P2, &self.config);
         let Ok(p2_role_msg) = p2_role_msg.into_serialized() else {
             error!("Failed to serialize game role message, shutting down");
             ctx.stop();
