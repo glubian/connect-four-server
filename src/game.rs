@@ -3,6 +3,8 @@ use std::{error::Error, fmt};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
+use Player::{P1, P2};
+
 pub const FIELD_SIZE: usize = 7;
 pub const WIN_LEN: usize = 4;
 
@@ -53,8 +55,8 @@ pub struct GameResult {
 #[derive(Clone, Copy, PartialEq, Eq, Serialize_repr, Deserialize_repr, Debug)]
 #[repr(u8)]
 pub enum GameWinner {
-    P1 = Player::P1 as u8,
-    P2 = Player::P2 as u8,
+    P1 = P1 as u8,
+    P2 = P2 as u8,
     Draw = 2,
 }
 
@@ -89,8 +91,8 @@ impl Error for GameValidationError {}
 fn is_chip_count_valid(starting_player: Player, p1: u32, p2: u32) -> bool {
     match starting_player {
         _ if p1 == p2 => true,
-        Player::P1 => p1 == p2 + 1,
-        Player::P2 => p2 == p1 + 1,
+        P1 => p1 == p2 + 1,
+        P2 => p2 == p1 + 1,
     }
 }
 
@@ -108,8 +110,8 @@ fn get_turn_and_validate(
                 Some(p) => {
                     found = true;
                     match p {
-                        Player::P1 => p1 += 1,
-                        Player::P2 => p2 += 1,
+                        P1 => p1 += 1,
+                        P2 => p2 += 1,
                     };
                 }
                 None => {
@@ -246,8 +248,8 @@ fn get_result(field: &GameField, turn: u32) -> Option<GameResult> {
             .iter()
             .copied()
             .fold((false, false), |(p1, p2), ((x, y), _)| match field[x][y] {
-                Some(Player::P1) => (true, p2),
-                Some(Player::P2) => (p1, true),
+                Some(P1) => (true, p2),
+                Some(P2) => (p1, true),
                 None => (p1, p2),
             });
 
@@ -496,7 +498,7 @@ impl Default for Game {
 impl Default for GameRules {
     fn default() -> Self {
         Self {
-            starting_player: Player::P1,
+            starting_player: P1,
             allow_draws: false,
         }
     }
@@ -570,19 +572,19 @@ mod tests {
         let mut game = Game::new(rules);
         game.end_turn(3).unwrap();
         assert_eq!(game.state.turn, 1);
-        assert_eq!(game.state.player, Player::P2);
+        assert_eq!(game.state.player, P2);
     }
 
     #[test]
     fn validate_new_game() {
         let field = EMPTY_FIELD;
-        let player = Player::P1;
+        let player = P1;
         assert!(get_turn_and_validate(&field, player).is_ok());
     }
 
     #[test]
     fn validate_in_game() {
-        let player = Player::P1;
+        let player = P1;
         let rules = GameRules::default();
         let field = in_game(rules).field;
         assert!(get_turn_and_validate(&field, player).is_ok());
@@ -590,7 +592,7 @@ mod tests {
 
     #[test]
     fn validate_won_game() {
-        let player = Player::P1;
+        let player = P1;
         let rules = GameRules::default();
         let field = won_game_diagonal2(rules).field;
         assert!(get_turn_and_validate(&field, player).is_ok());
@@ -598,7 +600,7 @@ mod tests {
 
     #[test]
     fn validate_gravity() {
-        let player = Player::P1;
+        let player = P1;
         let rules = GameRules::default();
         let mut field = won_game_horizontal(rules).field;
         field[6][6] = None;
@@ -608,7 +610,7 @@ mod tests {
 
     #[test]
     fn validate_corrupted_game() {
-        let player = Player::P1;
+        let player = P1;
         let rules = GameRules::default();
         let mut field = won_game_horizontal(rules).field;
         field[6][6] = None;
@@ -704,7 +706,7 @@ mod tests {
 
     #[test]
     fn is_game_over_incremental_in_game() {
-        let player = Player::P1;
+        let player = P1;
         let rules = GameRules::default();
         let mut game = Game::new(rules);
         game.end_turn(3).unwrap();
@@ -714,55 +716,55 @@ mod tests {
     #[test]
     fn is_game_over_incremental_horizontal() {
         let game = won_game_horizontal(GameRules::default());
-        assert!(game.is_move_winning(6, 6, Player::P1));
+        assert!(game.is_move_winning(6, 6, P1));
     }
 
     #[test]
     fn is_game_over_incremental_vertical() {
         let game = won_game_vertical(GameRules::default());
-        assert!(game.is_move_winning(3, 3, Player::P1));
+        assert!(game.is_move_winning(3, 3, P1));
     }
 
     #[test]
     fn is_game_over_incremental_diagonal1() {
         let game = won_game_diagonal1(GameRules::default());
-        assert!(game.is_move_winning(6, 3, Player::P1));
-        assert!(game.is_move_winning(5, 4, Player::P1));
-        assert!(game.is_move_winning(4, 5, Player::P1));
-        assert!(game.is_move_winning(3, 6, Player::P1));
+        assert!(game.is_move_winning(6, 3, P1));
+        assert!(game.is_move_winning(5, 4, P1));
+        assert!(game.is_move_winning(4, 5, P1));
+        assert!(game.is_move_winning(3, 6, P1));
     }
 
     #[test]
     fn is_game_over_incremental_diagonal2() {
         let game = won_game_diagonal2(GameRules::default());
-        assert!(game.is_move_winning(0, 3, Player::P1));
-        assert!(game.is_move_winning(1, 4, Player::P1));
-        assert!(game.is_move_winning(2, 5, Player::P1));
-        assert!(game.is_move_winning(3, 6, Player::P1));
+        assert!(game.is_move_winning(0, 3, P1));
+        assert!(game.is_move_winning(1, 4, P1));
+        assert!(game.is_move_winning(2, 5, P1));
+        assert!(game.is_move_winning(3, 6, P1));
     }
 
     #[test]
     fn is_game_over_incremental_1() {
         let game = won_game_1(GameRules::default());
-        assert!(game.is_move_winning(4, 5, Player::P2));
-        assert!(game.is_move_winning(3, 4, Player::P2));
-        assert!(game.is_move_winning(2, 3, Player::P2));
-        assert!(game.is_move_winning(1, 2, Player::P2));
+        assert!(game.is_move_winning(4, 5, P2));
+        assert!(game.is_move_winning(3, 4, P2));
+        assert!(game.is_move_winning(2, 3, P2));
+        assert!(game.is_move_winning(1, 2, P2));
     }
 
     #[test]
     fn is_game_over_incremental_2() {
         let game = won_game_2(GameRules::default());
-        assert!(game.is_move_winning(2, 6, Player::P1));
-        assert!(game.is_move_winning(3, 5, Player::P1));
-        assert!(game.is_move_winning(4, 4, Player::P1));
-        assert!(game.is_move_winning(5, 3, Player::P1));
+        assert!(game.is_move_winning(2, 6, P1));
+        assert!(game.is_move_winning(3, 5, P1));
+        assert!(game.is_move_winning(4, 4, P1));
+        assert!(game.is_move_winning(5, 3, P1));
     }
 
     #[test]
     fn is_game_drawn_2() {
         let mut game = won_game_2(GameRules {
-            starting_player: Player::P1,
+            starting_player: P1,
             allow_draws: true,
         });
         assert!(game.end_turn(5).is_ok());
