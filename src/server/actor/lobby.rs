@@ -225,7 +225,8 @@ impl Handler<IncomingPickPlayer> for Lobby {
             Player::P1 => (player, self.host.clone()),
             Player::P2 => (self.host.clone(), player),
         };
-        let game = actor::Game::new(game, config.into(), round, p1, p2);
+        let cfg = Arc::clone(&self.cfg);
+        let game = actor::Game::new(game, config.into(), round, p1, p2, cfg);
         self.game = Some(game.start());
         debug!(
             "Player {} was chosen as {:?}, lobby shutting down",

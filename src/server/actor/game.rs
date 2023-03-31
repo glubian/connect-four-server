@@ -1,4 +1,5 @@
 use std::ops::{Index, IndexMut};
+use std::sync::Arc;
 use std::time::Duration;
 
 use actix::prelude::*;
@@ -14,10 +15,8 @@ use crate::game::{
 };
 
 use crate::game_config::{GameConfig, PartialGameConfig};
-use crate::server::actor;
+use crate::server::{actor, AppConfig};
 use actor::player::{self, AttachController, Disconnect, Disconnected, OutgoingMessage};
-
-const RESTART_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -183,6 +182,7 @@ pub struct Game {
     config: GameConfig,
     addrs: PlayerTuple<Addr<actor::Player>>,
     restart_requests: PlayerTuple<Option<RestartRequest>>,
+    cfg: Arc<AppConfig>,
 }
 
 impl Game {
@@ -193,6 +193,7 @@ impl Game {
         round: u32,
         p1: Addr<actor::Player>,
         p2: Addr<actor::Player>,
+        cfg: Arc<AppConfig>,
     ) -> Self {
         let stage = if let Some(game) = game {
             InGameStage { game }.into()
@@ -206,6 +207,7 @@ impl Game {
             config,
             addrs: PlayerTuple::new([p1, p2]),
             restart_requests: PlayerTuple::new([None, None]),
+            cfg,
         }
     }
 
@@ -287,16 +289,17 @@ impl Game {
 
     /// Creates a new restart request.
     fn create_restart_request(
+        duration: Duration,
         player: Player,
         config: Option<GameConfig>,
         ctx: &mut Context<Self>,
     ) -> RestartRequest {
         let handle = match player {
-            P1 => ctx.run_later(RESTART_REQUEST_TIMEOUT, Self::on_p1_request_timeout),
-            P2 => ctx.run_later(RESTART_REQUEST_TIMEOUT, Self::on_p2_request_timeout),
+            P1 => ctx.run_later(duration, Self::on_p1_request_timeout),
+            P2 => ctx.run_later(duration, Self::on_p2_request_timeout),
         };
-        let timeout = chrono::Duration::from_std(RESTART_REQUEST_TIMEOUT)
-            .unwrap_or_else(|_| chrono::Duration::zero());
+        let timeout =
+            chrono::Duration::from_std(duration).unwrap_or_else(|_| chrono::Duration::zero());
         let timestamp = Utc::now() + timeout;
         RestartRequest {
             config,
@@ -328,7 +331,12 @@ impl Game {
         if let Some(req) = self.restart_requests[player].take() {
             ctx.cancel_future(req.handle);
         }
-        self.restart_requests[player] = Some(Self::create_restart_request(player, config, ctx));
+        self.restart_requests[player] = Some(Self::create_restart_request(
+            self.cfg.restart_request_timeout,
+            player,
+            config,
+            ctx,
+        ));
         self.sync_restart_request(player);
     }
 

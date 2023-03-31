@@ -20,6 +20,7 @@ OPTIONS:
      --max-players <AMOUNT>                 Maximum players in a lobby (0-255)
      --heartbeat-interval <SECONDS>         Player ping interval in seconds, 0 to disable
      --heartbeat-timeout <SECONDS>          Player ping timeout in seconds, 0 to disable
+     --restart-request-timeout <SECONDS>    The amount of time player has to respond to a restart request.
   -c --config <FILE>                        Configuration file. Any command line options override configuration settings.
      --print-config                         Print configuration file and exit
      --version                              Show version and exit
@@ -61,6 +62,8 @@ impl AppArgs {
             exit_on_err(pargs.opt_value_from_str("--heartbeat-interval"));
         let heartbeat_timeout: Option<f64> =
             exit_on_err(pargs.opt_value_from_str("--heartbeat-timeout"));
+        let restart_request_timeout: Option<f64> =
+            exit_on_err(pargs.opt_value_from_str("--restart-request-timeout"));
 
         let partial_config = AppConfigPartial {
             url_base: exit_on_err(pargs.opt_value_from_str(["-b", "--url-base"])),
@@ -74,6 +77,7 @@ impl AppArgs {
             max_players: exit_on_err(pargs.opt_value_from_str("--max-players")),
             heartbeat_interval: heartbeat_interval.map(Duration::from_secs_f64),
             heartbeat_timeout: heartbeat_timeout.map(Duration::from_secs_f64),
+            restart_request_timeout: restart_request_timeout.map(Duration::from_secs_f64),
         };
 
         let args = Self {

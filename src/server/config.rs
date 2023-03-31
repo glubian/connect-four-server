@@ -35,6 +35,8 @@ pub struct AppConfig {
     pub heartbeat_interval: Duration,
     #[serde(with = "as_secs")]
     pub heartbeat_timeout: Duration,
+    #[serde(with = "as_secs")]
+    pub restart_request_timeout: Duration,
 }
 
 pub struct AppConfigPartial {
@@ -49,6 +51,7 @@ pub struct AppConfigPartial {
     pub max_players: Option<usize>,
     pub heartbeat_interval: Option<Duration>,
     pub heartbeat_timeout: Option<Duration>,
+    pub restart_request_timeout: Option<Duration>,
 }
 
 #[derive(Debug)]
@@ -86,6 +89,7 @@ impl AppConfig {
         apply_if_some!(self.max_players, cfg.max_players);
         apply_if_some!(self.heartbeat_interval, cfg.heartbeat_interval);
         apply_if_some!(self.heartbeat_timeout, cfg.heartbeat_timeout);
+        apply_if_some!(self.restart_request_timeout, cfg.restart_request_timeout);
     }
 }
 
@@ -103,6 +107,7 @@ impl Default for AppConfig {
             max_players: 20,
             heartbeat_interval: Duration::from_secs(5),
             heartbeat_timeout: Duration::from_secs(30),
+            restart_request_timeout: Duration::from_secs(60),
         }
     }
 }
