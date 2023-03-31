@@ -11,7 +11,7 @@ pub const WIN_LEN: usize = 4;
 type GameField = [[Option<Player>; FIELD_SIZE]; FIELD_SIZE];
 type GameMatch = ((usize, usize), (usize, usize));
 
-const LAST_TURN: u32 = (FIELD_SIZE * FIELD_SIZE) as u32 - 1;
+const LAST_MOVE: u32 = (FIELD_SIZE * FIELD_SIZE) as u32 - 1;
 const EMPTY_FIELD: GameField = [[None; FIELD_SIZE]; FIELD_SIZE];
 
 #[derive(Serialize, Deserialize)]
@@ -40,6 +40,8 @@ pub enum Player {
 pub struct GameState {
     pub player: Player,
     pub turn: u32,
+    /// The amount of chips on the field.
+    pub moves: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result: Option<GameResult>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -237,7 +239,7 @@ fn get_diagonal_matches(matches: &mut Vec<GameMatch>, field: &GameField) {
     }
 }
 
-fn get_result(field: &GameField, turn: u32) -> Option<GameResult> {
+fn get_result(field: &GameField, moves: u32) -> Option<GameResult> {
     let mut matches = Vec::new();
 
     get_horizontal_and_vertical_matches(&mut matches, field);
@@ -263,7 +265,7 @@ fn get_result(field: &GameField, turn: u32) -> Option<GameResult> {
         return Some(GameResult { winner, matches });
     }
 
-    if turn >= LAST_TURN {
+    if moves >= LAST_MOVE {
         return Some(GameResult {
             winner: GameWinner::Draw,
             matches: Vec::new(),
@@ -297,10 +299,11 @@ impl Game {
 
     fn update_result(&mut self, x: usize, y: usize) {
         let player = self.state.player;
+        let moves = self.state.moves;
         let turn = self.state.turn;
 
-        if turn >= LAST_TURN {
-            self.state.result = get_result(&self.field, turn);
+        if moves >= LAST_MOVE {
+            self.state.result = get_result(&self.field, moves);
             return;
         }
 
@@ -322,7 +325,7 @@ impl Game {
         }
 
         if skip_incremental_check || self.is_move_winning(x, y, player) {
-            self.state.result = get_result(&self.field, self.state.turn).unwrap().into();
+            self.state.result = get_result(&self.field, self.state.moves).unwrap().into();
         }
     }
 
@@ -467,6 +470,7 @@ impl GameState {
         Self {
             player: starting_player,
             turn: 0,
+            moves: 0,
             result: None,
             last_move: None,
         }
@@ -474,6 +478,7 @@ impl GameState {
 
     fn next_turn(&mut self, col: usize) {
         self.turn += 1;
+        self.moves += 1;
         self.player = self.player.other();
         self.last_move.replace(col);
     }
