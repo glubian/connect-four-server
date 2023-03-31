@@ -8,7 +8,10 @@ use log::{debug, error};
 use rand::Rng;
 
 use crate::game::Game as InternalGame;
-use crate::game::{GameRules, Player};
+use crate::game::{
+    GameRules,
+    Player::{self, P1, P2},
+};
 
 use crate::game_config::{GameConfig, PartialGameConfig};
 use crate::server::actor;
@@ -66,13 +69,13 @@ struct InGameStage {
 impl InGameStage {
     fn starting_player(p1_vote: bool, p2_vote: bool) -> Player {
         if p1_vote && !p2_vote {
-            Player::P1
+            P1
         } else if p2_vote && !p1_vote {
-            Player::P2
+            P2
         } else if rand::thread_rng().gen::<bool>() {
-            Player::P1
+            P1
         } else {
-            Player::P2
+            P2
         }
     }
 
@@ -212,8 +215,8 @@ impl Game {
 
     fn get_player_addr(&self, player: Player) -> &Addr<actor::Player> {
         match player {
-            Player::P1 => &self.p1,
-            Player::P2 => &self.p2,
+            P1 => &self.p1,
+            P2 => &self.p2,
         }
     }
 
@@ -221,9 +224,9 @@ impl Game {
     /// does not belong to either player in this instance.
     fn get_player(&self, player_addr: &Addr<actor::Player>) -> Option<Player> {
         if &self.p1 == player_addr {
-            Some(Player::P1)
+            Some(P1)
         } else if &self.p2 == player_addr {
-            Some(Player::P2)
+            Some(P2)
         } else {
             None
         }
@@ -283,14 +286,14 @@ impl Game {
 
     /// Deletes the restart request made by player 1.
     fn on_p1_request_timeout(&mut self, _: &mut Context<Self>) {
-        self.restart_requests[Player::P1].take();
-        self.sync_restart_request(Player::P1);
+        self.restart_requests[P1].take();
+        self.sync_restart_request(P1);
     }
 
     /// Deletes the restart request made by player 2.
     fn on_p2_request_timeout(&mut self, _: &mut Context<Self>) {
-        self.restart_requests[Player::P2].take();
-        self.sync_restart_request(Player::P2);
+        self.restart_requests[P2].take();
+        self.sync_restart_request(P2);
     }
 
     /// Creates a new restart request.
@@ -300,8 +303,8 @@ impl Game {
         ctx: &mut Context<Self>,
     ) -> RestartRequest {
         let handle = match player {
-            Player::P1 => ctx.run_later(RESTART_REQUEST_TIMEOUT, Self::on_p1_request_timeout),
-            Player::P2 => ctx.run_later(RESTART_REQUEST_TIMEOUT, Self::on_p2_request_timeout),
+            P1 => ctx.run_later(RESTART_REQUEST_TIMEOUT, Self::on_p1_request_timeout),
+            P2 => ctx.run_later(RESTART_REQUEST_TIMEOUT, Self::on_p2_request_timeout),
         };
         let timeout = chrono::Duration::from_std(RESTART_REQUEST_TIMEOUT)
             .unwrap_or_else(|_| chrono::Duration::zero());
@@ -315,7 +318,7 @@ impl Game {
 
     /// Dismisses restart requests that do not change the current config.
     fn dismiss_duplicate_restart_requests(&mut self, ctx: &mut Context<Self>) {
-        for player in [Player::P1, Player::P2] {
+        for player in [P1, P2] {
             let Some(req) = self.restart_requests[player].as_ref() else { continue };
             let req_config = req.config.as_ref();
             if req_config.map_or(false, |c| c == &self.config) {
@@ -367,14 +370,14 @@ impl Actor for Game {
             return;
         }
 
-        let p1_role_msg = OutgoingMessage::full_game_setup(Player::P1, &self.config);
+        let p1_role_msg = OutgoingMessage::full_game_setup(P1, &self.config);
         let Ok(p1_role_msg) = p1_role_msg.into_serialized() else {
             error!("Failed to serialize game role message, shutting down");
             ctx.stop();
             return;
         };
 
-        let p2_role_msg = OutgoingMessage::full_game_setup(Player::P2, &self.config);
+        let p2_role_msg = OutgoingMessage::full_game_setup(P2, &self.config);
         let Ok(p2_role_msg) = p2_role_msg.into_serialized() else {
             error!("Failed to serialize game role message, shutting down");
             ctx.stop();
