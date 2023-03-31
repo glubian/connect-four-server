@@ -181,10 +181,7 @@ pub struct Game {
     stage: GameStage,
     round: u32,
     config: GameConfig,
-
-    p1: Addr<actor::Player>,
-    p2: Addr<actor::Player>,
-
+    addrs: PlayerTuple<Addr<actor::Player>>,
     restart_requests: PlayerTuple<Option<RestartRequest>>,
 }
 
@@ -207,25 +204,17 @@ impl Game {
             stage,
             round,
             config,
-            p1,
-            p2,
+            addrs: PlayerTuple::new([p1, p2]),
             restart_requests: PlayerTuple::new([None, None]),
-        }
-    }
-
-    fn get_player_addr(&self, player: Player) -> &Addr<actor::Player> {
-        match player {
-            P1 => &self.p1,
-            P2 => &self.p2,
         }
     }
 
     /// Returns which player the address belongs to, or None if the address
     /// does not belong to either player in this instance.
     fn get_player(&self, player_addr: &Addr<actor::Player>) -> Option<Player> {
-        if &self.p1 == player_addr {
+        if &self.addrs[P1] == player_addr {
             Some(P1)
-        } else if &self.p2 == player_addr {
+        } else if &self.addrs[P2] == player_addr {
             Some(P2)
         } else {
             None
@@ -236,8 +225,8 @@ impl Game {
         let round = self.round;
         let Ok(sync1) = self.stage.outgoing_message(round).into_shared() else { return };
         let sync2 = sync1.clone();
-        self.p1.do_send(sync1);
-        self.p2.do_send(sync2);
+        self.addrs[P1].do_send(sync1);
+        self.addrs[P2].do_send(sync2);
     }
 
     /// Sends `OutgoingMessage::GameRestartRequest` to both players.
@@ -250,8 +239,8 @@ impl Game {
             return;
         };
         let msg2 = msg1.clone();
-        self.p1.do_send(msg1);
-        self.p2.do_send(msg2);
+        self.addrs[P1].do_send(msg1);
+        self.addrs[P2].do_send(msg2);
     }
 
     /// Sends `OutgoingMessage::GameSetup` containing the current configuration.
@@ -261,8 +250,8 @@ impl Game {
             .into();
         let msg1 = msg.into_shared().unwrap();
         let msg2 = msg1.clone();
-        self.p1.do_send(msg1);
-        self.p2.do_send(msg2);
+        self.addrs[P1].do_send(msg1);
+        self.addrs[P2].do_send(msg2);
     }
 
     /// Applies configuration from the restart request.
@@ -357,12 +346,8 @@ impl Actor for Game {
     type Context = actix::Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        let res1 = self
-            .p1
-            .try_send(AttachController(Either::Right(ctx.address())));
-        let res2 = self
-            .p2
-            .try_send(AttachController(Either::Right(ctx.address())));
+        let res1 = self.addrs[P1].try_send(AttachController(Either::Right(ctx.address())));
+        let res2 = self.addrs[P2].try_send(AttachController(Either::Right(ctx.address())));
         if res1.is_err() || res2.is_err() {
             // both controller must be registered successfully in order for WsGame to work properly
             debug!("Failed to attach controller, shutting down");
@@ -384,16 +369,16 @@ impl Actor for Game {
             return;
         };
 
-        self.p1.do_send(p1_role_msg);
-        self.p2.do_send(p2_role_msg);
+        self.addrs[P1].do_send(p1_role_msg);
+        self.addrs[P2].do_send(p2_role_msg);
         self.sync();
         debug!("Started");
     }
 
     fn stopped(&mut self, _: &mut Self::Context) {
         debug!("Shutting down");
-        self.p1.do_send(Disconnect::GameEnded);
-        self.p2.do_send(Disconnect::GameEnded);
+        self.addrs[P1].do_send(Disconnect::GameEnded);
+        self.addrs[P2].do_send(Disconnect::GameEnded);
     }
 }
 
@@ -413,8 +398,8 @@ impl Handler<PlayerSelectionVote> for Game {
             return;
         };
 
-        let update_p1 = msg.player == self.p1 && stage.p1_vote.is_none();
-        let update_p2 = msg.player == self.p2 && stage.p2_vote.is_none();
+        let update_p1 = msg.player == self.addrs[P1] && stage.p1_vote.is_none();
+        let update_p2 = msg.player == self.addrs[P2] && stage.p2_vote.is_none();
         if !(update_p1 || update_p2) {
             return;
         }
@@ -450,8 +435,7 @@ impl Handler<EndTurn> for Game {
 
         let state = game.state();
         let turn = state.turn;
-        let current_player_addr = self.get_player_addr(state.player);
-        if !(&msg.player == current_player_addr && turn == msg.turn) {
+        if !(msg.player == self.addrs[state.player] && turn == msg.turn) {
             return;
         }
 
