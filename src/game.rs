@@ -297,36 +297,55 @@ impl Game {
         }
     }
 
-    fn update_result(&mut self, x: usize, y: usize) {
+    /// Returns true if the most recent move was winning.
+    fn was_last_move_winning(&self) -> bool {
+        let Some(x) = self.state.last_move else {
+            return false;
+        };
+        let other_player = self.state.player.other();
+        self.field[x]
+            .iter()
+            .position(|y| *y == Some(other_player))
+            .map_or(false, |y| self.is_move_winning(x, y, other_player))
+    }
+
+    /// Returns a result if the current round has resolved the game.
+    ///
+    /// This function respects `GameRules`. It always runs `is_move_winning()`
+    /// before `get_results()`.
+    fn get_result(&self, x: usize, y: usize) -> Option<GameResult> {
+        let field = &self.field;
         let player = self.state.player;
         let moves = self.state.moves;
-        let turn = self.state.turn;
 
         if moves >= LAST_MOVE {
-            self.state.result = get_result(&self.field, moves);
-            return;
+            return match get_result(field, moves) {
+                Some(res) => Some(res),
+                None => unreachable!(),
+            };
         }
 
-        let mut skip_incremental_check = false;
         if self.rules.allow_draws {
-            if turn % 2 == 0 {
-                return;
+            if player == P1 {
+                return None;
             }
 
-            if let Some(col) = self.state.last_move {
-                let other_player = self.state.player.other();
-                for i in 0..FIELD_SIZE {
-                    if self.field[col][i] == Some(other_player) {
-                        skip_incremental_check = self.is_move_winning(col, i, other_player);
-                        break;
-                    }
-                }
+            if self.was_last_move_winning() {
+                return match get_result(field, moves) {
+                    Some(res) => Some(res),
+                    None => unreachable!(),
+                };
             }
         }
 
-        if skip_incremental_check || self.is_move_winning(x, y, player) {
-            self.state.result = get_result(&self.field, self.state.moves).unwrap().into();
+        if self.is_move_winning(x, y, player) {
+            return match get_result(field, moves) {
+                Some(res) => Some(res),
+                None => unreachable!(),
+            };
         }
+
+        None
     }
 
     pub fn end_turn(&mut self, col: usize) -> Result<(), EndTurnError> {
@@ -344,7 +363,7 @@ impl Game {
             }
 
             self.field[col][i] = Some(self.state.player);
-            self.update_result(col, i);
+            self.state.result = self.get_result(col, i);
             self.state.next_turn(col);
             return Ok(());
         }
