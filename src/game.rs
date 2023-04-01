@@ -313,10 +313,21 @@ impl Game {
     ///
     /// This function respects `GameRules`. It always runs `is_move_winning()`
     /// before `get_results()`.
-    fn get_result(&self, x: usize, y: usize) -> Option<GameResult> {
+    fn get_result(&self, point: Option<(usize, usize)>) -> Option<GameResult> {
         let field = &self.field;
         let player = self.state.player;
         let moves = self.state.moves;
+
+        let Some((x, y)) = point else {
+            return if self.rules.allow_draws && player == P2 && self.was_last_move_winning() {
+                match get_result(field, moves) {
+                    Some(res) => Some(res),
+                    None => unreachable!(),
+                }
+            } else {
+                None
+            }
+        };
 
         if moves >= LAST_MOVE {
             return match get_result(field, moves) {
@@ -348,13 +359,26 @@ impl Game {
         None
     }
 
-    pub fn end_turn(&mut self, col: usize) -> Result<(), EndTurnError> {
-        if col >= self.field.len() {
-            return Err(EndTurnError::IndexOutOfBounds);
-        }
-
+    /// Ends the current turn.
+    ///
+    /// Errors:
+    ///
+    /// - `GameOver` when the game is resolved
+    /// - `IndexOutOfBounds` if `col` is outside of `0..FIELD_SIZE` range
+    /// - `ColumnFilled` when there no space left in the column
+    pub fn end_turn(&mut self, col: Option<usize>) -> Result<(), EndTurnError> {
         if self.state.result.is_some() {
             return Err(EndTurnError::GameOver);
+        }
+
+        let Some(col) = col else {
+            self.state.result = self.get_result(None);
+            self.state.next_turn(None);
+            return Ok(());
+        };
+
+        if col >= self.field.len() {
+            return Err(EndTurnError::IndexOutOfBounds);
         }
 
         for i in (0..FIELD_SIZE).rev() {
@@ -363,8 +387,8 @@ impl Game {
             }
 
             self.field[col][i] = Some(self.state.player);
-            self.state.result = self.get_result(col, i);
-            self.state.next_turn(col);
+            self.state.result = self.get_result(Some((col, i)));
+            self.state.next_turn(Some(col));
             return Ok(());
         }
 
@@ -495,11 +519,13 @@ impl GameState {
         }
     }
 
-    fn next_turn(&mut self, col: usize) {
+    fn next_turn(&mut self, col: Option<usize>) {
         self.turn += 1;
-        self.moves += 1;
+        if col.is_some() {
+            self.moves += 1;
+        }
         self.player = self.player.other();
-        self.last_move.replace(col);
+        self.last_move = col;
     }
 }
 
@@ -534,7 +560,7 @@ mod tests {
 
     fn fast_forward_game(rules: GameRules, moves: &[usize]) -> Game {
         let mut game = Game::new(rules);
-        for i in moves.iter().map(|i| i - 1) {
+        for i in moves.iter().map(|i| Some(i - 1)) {
             game.end_turn(i).unwrap();
         }
 
@@ -578,7 +604,7 @@ mod tests {
 
     fn drawn_game(rules: GameRules) -> (Game, Result<(), ()>) {
         let mut game = won_game_horizontal(rules);
-        let drawn = game.end_turn(6).map_err(|_| ());
+        let drawn = game.end_turn(Some(6)).map_err(|_| ());
         (game, drawn)
     }
 
@@ -594,7 +620,7 @@ mod tests {
     fn game_end_turn_success() {
         let rules = GameRules::default();
         let mut game = Game::new(rules);
-        game.end_turn(3).unwrap();
+        game.end_turn(Some(3)).unwrap();
         assert_eq!(game.state.turn, 1);
         assert_eq!(game.state.player, P2);
     }
@@ -647,14 +673,14 @@ mod tests {
     fn game_end_turn_out_of_bounds() {
         let rules = GameRules::default();
         let mut game = Game::new(rules);
-        assert_eq!(game.end_turn(7), Err(EndTurnError::IndexOutOfBounds));
+        assert_eq!(game.end_turn(Some(7)), Err(EndTurnError::IndexOutOfBounds));
     }
 
     #[test]
     fn game_over_end_turn() {
         let rules = GameRules::default();
         let mut game = won_game_horizontal(rules);
-        assert_eq!(game.end_turn(2), Err(EndTurnError::GameOver));
+        assert_eq!(game.end_turn(Some(2)), Err(EndTurnError::GameOver));
     }
 
     #[test]
@@ -662,9 +688,9 @@ mod tests {
         let rules = GameRules::default();
         let mut game = Game::new(rules);
         for _ in 0..FIELD_SIZE {
-            game.end_turn(3).unwrap();
+            game.end_turn(Some(3)).unwrap();
         }
-        assert_eq!(game.end_turn(3), Err(EndTurnError::ColumnFilled));
+        assert_eq!(game.end_turn(Some(3)), Err(EndTurnError::ColumnFilled));
     }
 
     #[test]
@@ -733,7 +759,7 @@ mod tests {
         let player = P1;
         let rules = GameRules::default();
         let mut game = Game::new(rules);
-        game.end_turn(3).unwrap();
+        game.end_turn(Some(3)).unwrap();
         assert!(!game.is_move_winning(3, 6, player));
     }
 
@@ -791,7 +817,7 @@ mod tests {
             starting_player: P1,
             allow_draws: true,
         });
-        assert!(game.end_turn(5).is_ok());
+        assert!(game.end_turn(Some(5)).is_ok());
         assert!(game.state.result.is_some());
     }
 

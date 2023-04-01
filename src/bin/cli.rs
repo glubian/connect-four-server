@@ -43,7 +43,7 @@ impl App {
             }
 
             let m = (c as usize) - ('1' as usize);
-            let res = self.game.end_turn(m);
+            let res = self.game.end_turn(Some(m));
             if let Err(EndTurnError::GameOver) = res {
                 println!("Game over!");
                 return;

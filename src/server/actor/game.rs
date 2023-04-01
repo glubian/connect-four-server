@@ -451,7 +451,7 @@ impl Handler<EndTurn> for Game {
             return;
         };
 
-        if game.end_turn(msg.col).is_ok() {
+        if game.end_turn(Some(msg.col)).is_ok() {
             self.sync();
         }
     }
