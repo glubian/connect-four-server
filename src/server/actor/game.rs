@@ -110,10 +110,7 @@ impl GameStage {
                 let p2_voted = stage.p2_vote.is_some();
                 OutgoingMessage::game_player_selection(p1_voted, p2_voted)
             }
-            Self::InGame(stage) => OutgoingMessage::GameSync {
-                round,
-                game: &stage.game,
-            },
+            Self::InGame(stage) => OutgoingMessage::game_sync(round, &stage.game, None),
         }
     }
 }

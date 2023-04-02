@@ -32,7 +32,7 @@ pub enum OutgoingMessage<'a> {
     LobbyCode { code: u8 },
     GameSetup(OutgoingGameSetup<'a>),
     GamePlayerSelection(OutgoingPlayerSelection),
-    GameSync { round: u32, game: &'a Game },
+    GameSync(OutgoingGameSync<'a>),
     GameRestartRequest(OutgoingRestartRequest<'a>),
     Pong { sent: f64, received: String },
 }
@@ -62,6 +62,11 @@ impl<'a> OutgoingMessage<'a> {
     #[must_use]
     pub fn game_player_selection(p1_voted: bool, p2_voted: bool) -> Self {
         OutgoingPlayerSelection { p1_voted, p2_voted }.into()
+    }
+
+    #[must_use]
+    pub fn game_sync(round: u32, game: &'a Game, timeout: Option<DateTime<Utc>>) -> Self {
+        OutgoingGameSync::new(round, game, timeout).into()
     }
 
     /// Constructs a new `OutgoingMessage::GameRestartRequest`.
@@ -167,6 +172,31 @@ pub struct OutgoingPlayerSelection {
 impl<'a> From<OutgoingPlayerSelection> for OutgoingMessage<'a> {
     fn from(msg: OutgoingPlayerSelection) -> Self {
         Self::GamePlayerSelection(msg)
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutgoingGameSync<'a> {
+    round: u32,
+    game: &'a Game,
+    timeout: Option<String>,
+}
+
+impl<'a> OutgoingGameSync<'a> {
+    #[must_use]
+    pub fn new(round: u32, game: &'a Game, timeout: Option<DateTime<Utc>>) -> Self {
+        Self {
+            round,
+            game,
+            timeout: timeout.map(|t| t.format(ISO_8601_TIMESTAMP).to_string()),
+        }
+    }
+}
+
+impl<'a> From<OutgoingGameSync<'a>> for OutgoingMessage<'a> {
+    fn from(msg: OutgoingGameSync<'a>) -> Self {
+        Self::GameSync(msg)
     }
 }
 
