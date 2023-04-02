@@ -63,6 +63,13 @@ impl PlayerSelectionStage {
 
 struct InGameStage {
     game: InternalGame,
+    starting_time: PlayerTuple<Duration>,
+    timer: Option<Timer>,
+}
+
+struct Timer {
+    handle: SpawnHandle,
+    timeout: DateTime<Utc>,
 }
 
 impl InGameStage {
@@ -85,7 +92,21 @@ impl InGameStage {
             allow_draws: rules.allow_draws,
         };
         let game = InternalGame::new(rules);
-        Self { game }
+        Self {
+            game,
+            starting_time: PlayerTuple::new([Duration::ZERO, Duration::ZERO]),
+            timer: None,
+        }
+    }
+}
+
+impl From<InternalGame> for InGameStage {
+    fn from(g: InternalGame) -> Self {
+        Self {
+            game: g,
+            starting_time: PlayerTuple::new([Duration::ZERO, Duration::ZERO]),
+            timer: None,
+        }
     }
 }
 
@@ -96,7 +117,7 @@ enum GameStage {
 
 impl GameStage {
     fn is_game_over(&self) -> bool {
-        if let Self::InGame(InGameStage { game }) = self {
+        if let Self::InGame(InGameStage { game, .. }) = self {
             game.state().result.is_some()
         } else {
             false
@@ -192,8 +213,8 @@ impl Game {
         p2: Addr<actor::Player>,
         cfg: Arc<AppConfig>,
     ) -> Self {
-        let stage = if let Some(game) = game {
-            InGameStage { game }.into()
+        let stage: GameStage = if let Some(game) = game {
+            InGameStage::from(game).into()
         } else {
             PlayerSelectionStage::new().into()
         };
@@ -434,7 +455,7 @@ impl Handler<EndTurn> for Game {
     type Result = ();
 
     fn handle(&mut self, msg: EndTurn, _: &mut Self::Context) {
-        let GameStage::InGame(InGameStage { game }) = &self.stage else {
+        let GameStage::InGame(InGameStage { game, .. }) = &self.stage else {
             return;
         };
 
@@ -444,7 +465,7 @@ impl Handler<EndTurn> for Game {
             return;
         }
 
-        let GameStage::InGame(InGameStage { game }) = &mut self.stage else {
+        let GameStage::InGame(InGameStage { game, .. }) = &mut self.stage else {
             return;
         };
 
