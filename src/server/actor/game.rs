@@ -30,7 +30,7 @@ pub struct PlayerSelectionVote {
 pub struct EndTurn {
     pub player: Addr<actor::Player>,
     pub turn: u32,
-    pub col: usize,
+    pub col: Option<usize>,
 }
 
 #[derive(Message)]
@@ -451,7 +451,7 @@ impl Handler<EndTurn> for Game {
             return;
         };
 
-        if game.end_turn(Some(msg.col)).is_ok() {
+        if game.end_turn(msg.col).is_ok() {
             self.sync();
         }
     }

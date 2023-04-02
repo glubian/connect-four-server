@@ -255,6 +255,13 @@ struct IncomingPlayerSelectionVote {
 }
 
 #[derive(Deserialize)]
+struct IncomingEndTurn {
+    turn: u32,
+    #[serde(default)]
+    col: Option<usize>,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct IncomingRestart {
     #[serde(flatten)]
@@ -266,7 +273,7 @@ struct IncomingRestart {
 enum IncomingMessage {
     LobbyPickPlayer(IncomingPickPlayer),
     GamePlayerSelectionVote(IncomingPlayerSelectionVote),
-    GameEndTurn { turn: u32, col: usize },
+    GameEndTurn(IncomingEndTurn),
     GameRestart(IncomingRestart),
     GameRestartResponse { accepted: bool },
     Ping { sent: f64 },
@@ -405,7 +412,7 @@ impl Player {
                 })
                 .unwrap();
             }
-            IncomingMessage::GameEndTurn { turn, col } => {
+            IncomingMessage::GameEndTurn(IncomingEndTurn { turn, col }) => {
                 let Some(Right(game)) = &self.controller else {
                     debug!("Received IncomingMessage::GameEndTurn, but no controller is attached!");
                     return;
