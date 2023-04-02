@@ -1,6 +1,6 @@
 use std::ops::{Index, IndexMut};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use actix_web::Either;
@@ -15,6 +15,7 @@ use crate::game::{
 };
 
 use crate::game_config::{GameConfig, PartialGameConfig};
+use crate::server::constants::TIME_PER_TURN_MIN;
 use crate::server::{actor, AppConfig};
 use actor::player::{self, AttachController, Disconnect, Disconnected, OutgoingMessage};
 
@@ -63,13 +64,14 @@ impl PlayerSelectionStage {
 
 struct InGameStage {
     game: InternalGame,
-    starting_time: PlayerTuple<Duration>,
-    timer: Option<Timer>,
+    extra_time: PlayerTuple<Duration>,
+    timeout: Option<TurnTimeout>,
 }
 
-struct Timer {
+struct TurnTimeout {
     handle: SpawnHandle,
-    timeout: DateTime<Utc>,
+    chrono: DateTime<Utc>,
+    instant: Instant,
 }
 
 impl InGameStage {
@@ -94,8 +96,8 @@ impl InGameStage {
         let game = InternalGame::new(rules);
         Self {
             game,
-            starting_time: PlayerTuple::new([Duration::ZERO, Duration::ZERO]),
-            timer: None,
+            extra_time: PlayerTuple::new([Duration::ZERO, Duration::ZERO]),
+            timeout: None,
         }
     }
 }
@@ -104,8 +106,8 @@ impl From<InternalGame> for InGameStage {
     fn from(g: InternalGame) -> Self {
         Self {
             game: g,
-            starting_time: PlayerTuple::new([Duration::ZERO, Duration::ZERO]),
-            timer: None,
+            extra_time: PlayerTuple::new([Duration::ZERO, Duration::ZERO]),
+            timeout: None,
         }
     }
 }
@@ -131,7 +133,11 @@ impl GameStage {
                 let p2_voted = stage.p2_vote.is_some();
                 OutgoingMessage::game_player_selection(p1_voted, p2_voted)
             }
-            Self::InGame(stage) => OutgoingMessage::game_sync(round, &stage.game, None),
+            Self::InGame(stage) => {
+                let game = &stage.game;
+                let timeout = stage.timeout.as_ref().map(|t| t.chrono);
+                OutgoingMessage::game_sync(round, game, timeout)
+            }
         }
     }
 }
@@ -358,8 +364,69 @@ impl Game {
         self.sync_restart_request(player);
     }
 
+    /// Called when the time has ran out.
+    fn on_timeout(&mut self, ctx: &mut Context<Self>) {
+        let GameStage::InGame(InGameStage { game, .. }) = &self.stage else {
+            return;
+        };
+        let msg = EndTurn {
+            col: None,
+            player: Addr::clone(&self.addrs[game.state().player]),
+            turn: game.state().turn,
+        };
+        Self::handle(self, msg, ctx);
+    }
+
+    /// Starts a new timeout and replaces the old one.
+    fn start_timeout(
+        timeout: &mut Option<TurnTimeout>,
+        extra_time: Duration,
+        config: &GameConfig,
+        ctx: &mut Context<Self>,
+    ) {
+        let GameConfig {
+            time_per_turn,
+            time_cap,
+            ..
+        } = *config;
+        if time_per_turn < TIME_PER_TURN_MIN {
+            return;
+        }
+
+        let time_cap = time_cap.max(time_per_turn);
+
+        let now = Instant::now();
+        let duration = (extra_time + time_per_turn).min(time_cap);
+        let handle = ctx.run_later(duration, Self::on_timeout);
+
+        let duration_chrono =
+            chrono::Duration::from_std(duration).unwrap_or_else(|_| chrono::Duration::zero());
+        let timeout_chrono = Utc::now() + duration_chrono;
+
+        let timeout_instant = now + duration;
+
+        timeout.replace(TurnTimeout {
+            handle,
+            chrono: timeout_chrono,
+            instant: timeout_instant,
+        });
+    }
+
+    /// Clears timeout and returns how much time remained until it would fire.
+    fn clear_timeout(timeout: &mut Option<TurnTimeout>, ctx: &mut Context<Self>) -> Duration {
+        let Some(timeout) = timeout.take() else {
+            return Duration::ZERO;
+        };
+
+        ctx.cancel_future(timeout.handle);
+        timeout.instant - Instant::now()
+    }
+
     /// Restarts the game.
     fn restart(&mut self, ctx: &mut Context<Self>) {
+        if let GameStage::InGame(InGameStage { timeout, .. }) = &mut self.stage {
+            Self::clear_timeout(timeout, ctx);
+        };
         self.dismiss_duplicate_restart_requests(ctx);
         self.stage = PlayerSelectionStage::new().into();
         self.round = self.round.wrapping_add(1);
@@ -454,24 +521,38 @@ impl Handler<PlayerSelectionVote> for Game {
 impl Handler<EndTurn> for Game {
     type Result = ();
 
-    fn handle(&mut self, msg: EndTurn, _: &mut Self::Context) {
+    fn handle(&mut self, msg: EndTurn, ctx: &mut Self::Context) {
         let GameStage::InGame(InGameStage { game, .. }) = &self.stage else {
             return;
         };
 
         let state = game.state();
+        let player = state.player;
         let turn = state.turn;
-        if !(msg.player == self.addrs[state.player] && turn == msg.turn) {
+        if !(msg.player == self.addrs[player] && turn == msg.turn) {
             return;
         }
 
-        let GameStage::InGame(InGameStage { game, .. }) = &mut self.stage else {
+        let GameStage::InGame(InGameStage { 
+            game,
+            extra_time,
+            timeout
+        }) = &mut self.stage else {
             return;
         };
 
-        if game.end_turn(msg.col).is_ok() {
-            self.sync();
+        if game.end_turn(msg.col).is_err() {
+            return;
         }
+
+        let time_remaining = Self::clear_timeout(timeout, ctx);
+        if turn != 0 {
+            extra_time[player] = time_remaining;
+        }
+        if game.state().result.is_none() {
+            Self::start_timeout(timeout, extra_time[game.state().player], &self.config, ctx);
+        }
+        self.sync();
     }
 }
 
