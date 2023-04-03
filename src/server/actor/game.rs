@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use actix::prelude::*;
 use actix_web::Either;
 use chrono::{DateTime, Utc};
-use log::{debug, error};
+use log::debug;
 use rand::Rng;
 
 use crate::game::Game as InternalGame;
@@ -249,7 +249,7 @@ impl Game {
 
     fn sync(&self) {
         let round = self.round;
-        let Ok(sync1) = self.stage.outgoing_message(round).into_shared() else { return };
+        let sync1 = self.stage.outgoing_message(round).into_shared().unwrap();
         let sync2 = sync1.clone();
         self.addrs[P1].do_send(sync1);
         self.addrs[P2].do_send(sync2);
@@ -259,11 +259,7 @@ impl Game {
     fn sync_restart_request(&self, player: Player) {
         let req = &self.restart_requests[player];
         let player_req = req.as_ref().map(RestartRequest::to_outgoing);
-        let msg1 = OutgoingMessage::game_restart_request(player, player_req).into_shared();
-        let Ok(msg1) = msg1 else {
-            error!("Failed to serialize game restart request message");
-            return;
-        };
+        let msg1 = OutgoingMessage::game_restart_request(player, player_req).into_shared().unwrap();
         let msg2 = msg1.clone();
         self.addrs[P1].do_send(msg1);
         self.addrs[P2].do_send(msg2);
@@ -451,20 +447,8 @@ impl Actor for Game {
             return;
         }
 
-        let p1_role_msg = OutgoingMessage::full_game_setup(P1, &self.config);
-        let Ok(p1_role_msg) = p1_role_msg.into_serialized() else {
-            error!("Failed to serialize game role message, shutting down");
-            ctx.stop();
-            return;
-        };
-
-        let p2_role_msg = OutgoingMessage::full_game_setup(P2, &self.config);
-        let Ok(p2_role_msg) = p2_role_msg.into_serialized() else {
-            error!("Failed to serialize game role message, shutting down");
-            ctx.stop();
-            return;
-        };
-
+        let p1_role_msg = OutgoingMessage::full_game_setup(P1, &self.config).into_serialized().unwrap();
+        let p2_role_msg = OutgoingMessage::full_game_setup(P2, &self.config).into_serialized().unwrap();
         self.addrs[P1].do_send(p1_role_msg);
         self.addrs[P2].do_send(p2_role_msg);
         self.sync();

@@ -6,7 +6,7 @@ use std::{
 
 use actix::prelude::*;
 use actix_web::Either;
-use log::{debug, error};
+use log::debug;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use uuid::Uuid;
 
@@ -90,10 +90,9 @@ impl Lobby {
 
     fn sync_player_list(&mut self, _: &mut actix::Context<Self>) {
         let codes: Vec<u8> = self.players.keys().copied().collect();
-        let Ok(msg) = OutgoingMessage::LobbySync { players: &codes }.into_serialized() else {
-            error!("Failed to serialize lobby sync message");
-            return;
-        };
+        let msg = OutgoingMessage::LobbySync { players: &codes }
+            .into_serialized()
+            .unwrap();
         self.host.do_send(msg);
 
         let sync = &mut self.player_list_sync;
@@ -126,12 +125,9 @@ impl Actor for Lobby {
             return;
         };
 
-        let Ok(link_msg) = OutgoingMessage::lobby_link(self.id, &self.cfg).into_serialized() else {
-            error!("Failed to serialize lobby link message, shutting down");
-            ctx.stop();
-            return;
-        };
-
+        let link_msg = OutgoingMessage::lobby_link(self.id, &self.cfg)
+            .into_serialized()
+            .unwrap();
         self.host.do_send(link_msg);
         debug!("Started");
     }
@@ -176,12 +172,9 @@ impl Handler<ConnectPlayer> for Lobby {
             return;
         };
 
-        let Ok(msg) = OutgoingMessage::LobbyCode { code: id }.into_serialized() else {
-            player.do_send(Disconnect::LobbyJoinError);
-            error!("Failed to serialize lobby code message");
-            return;
-        };
-
+        let msg = OutgoingMessage::LobbyCode { code: id }
+            .into_serialized()
+            .unwrap();
         player.do_send(msg);
         self.players.insert(id, player);
         self.schedule_player_list_sync(ctx);
