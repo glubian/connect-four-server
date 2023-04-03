@@ -377,38 +377,41 @@ impl Game {
         Self::handle(self, msg, ctx);
     }
 
-    /// Starts a new timeout and replaces the old one.
-    fn start_timeout(
-        timeout: &mut Option<TurnTimeout>,
-        extra_time: Duration,
-        config: &GameConfig,
-        ctx: &mut Context<Self>,
-    ) {
+    /// Returns the amount of time the current turn should take, or `0`
+    /// if timer is disabled.
+    fn get_timeout_duration(extra_time: Duration, config: &GameConfig) -> Duration {
         let GameConfig {
             time_per_turn,
             time_cap,
             ..
         } = *config;
+
         if time_per_turn < TIME_PER_TURN_MIN {
-            return;
+            return Duration::ZERO;
         }
 
         let time_cap = time_cap.max(time_per_turn);
+        (extra_time + time_per_turn).min(time_cap)
+    }
 
-        let now = Instant::now();
-        let duration = (extra_time + time_per_turn).min(time_cap);
+    /// Starts a timeout, if there is none.
+    fn start_timeout(
+        timeout: &mut Option<TurnTimeout>,
+        duration: Duration,
+        ctx: &mut Context<Self>,
+    ) {
+        if timeout.is_some() || duration < TIME_PER_TURN_MIN {
+            return;
+        }
+
         let handle = ctx.run_later(duration, Self::on_timeout);
-
         let duration_chrono =
             chrono::Duration::from_std(duration).unwrap_or_else(|_| chrono::Duration::zero());
-        let timeout_chrono = Utc::now() + duration_chrono;
-
-        let timeout_instant = now + duration;
 
         timeout.replace(TurnTimeout {
             handle,
-            chrono: timeout_chrono,
-            instant: timeout_instant,
+            chrono: Utc::now() + duration_chrono,
+            instant: Instant::now() + duration,
         });
     }
 
@@ -550,7 +553,8 @@ impl Handler<EndTurn> for Game {
             extra_time[player] = time_remaining;
         }
         if game.state().result.is_none() {
-            Self::start_timeout(timeout, extra_time[game.state().player], &self.config, ctx);
+            let duration = Self::get_timeout_duration(extra_time[game.state().player], &self.config);
+            Self::start_timeout(timeout, duration, ctx);
         }
         self.sync();
     }
