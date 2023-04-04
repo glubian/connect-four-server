@@ -1,8 +1,10 @@
-pub mod as_secs {
-    use std::time::Duration;
+use std::time::Duration;
 
-    use serde::de::{Deserialize, Deserializer};
-    use serde::ser::Serializer;
+use serde::de::{Deserialize, Deserializer};
+use serde::ser::Serializer;
+
+pub mod as_secs {
+    use super::*;
 
     pub fn serialize<S>(value: &Duration, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -21,19 +23,13 @@ pub mod as_secs {
 }
 
 pub mod as_secs_optional {
-    use std::time::Duration;
-
-    use serde::de::{Deserialize, Deserializer};
-    use serde::ser::Serializer;
+    use super::*;
 
     pub fn serialize<S>(value: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        match value {
-        Some(v) => serializer.serialize_f64(v.as_secs_f64()),
-        _ => unreachable!(),
-        }
+        serializer.serialize_f64(value.unwrap().as_secs_f64())
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
