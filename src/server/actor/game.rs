@@ -215,12 +215,18 @@ impl Game {
         game: Option<InternalGame>,
         config: GameConfig,
         round: u32,
+        extra_time: Option<[Duration; 2]>,
         p1: Addr<actor::Player>,
         p2: Addr<actor::Player>,
         cfg: Arc<AppConfig>,
     ) -> Self {
         let stage: GameStage = if let Some(game) = game {
-            InGameStage::from(game).into()
+            InGameStage {
+                game,
+                extra_time: extra_time.unwrap_or_default().into(),
+                timeout: None,
+            }
+            .into()
         } else {
             PlayerSelectionStage::new().into()
         };
@@ -526,7 +532,7 @@ impl Handler<EndTurn> for Game {
             return;
         }
 
-        let GameStage::InGame(InGameStage { 
+        let GameStage::InGame(InGameStage {
             game,
             extra_time,
             timeout

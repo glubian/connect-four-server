@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::{sync::Arc, time::Instant};
 
 use actix::{prelude::*, WeakAddr};
@@ -12,6 +13,7 @@ use uuid::Uuid;
 use crate::game::{self, Game};
 use crate::game_config::{GameConfig, PartialGameConfig};
 use crate::server::actor::game::{PlayerSelectionVote, RestartResponse};
+use crate::server::serde::as_millis_optional_tuple;
 use crate::server::{
     actor::{
         self,
@@ -269,6 +271,7 @@ impl QR {
 // Incoming messages
 
 #[derive(Message, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[rtype(result = "()")]
 pub struct IncomingPickPlayer {
     pub code: u8,
@@ -276,6 +279,8 @@ pub struct IncomingPickPlayer {
     pub game: Option<Game>,
     pub config: PartialGameConfig,
     pub round: u32,
+    #[serde(with = "as_millis_optional_tuple", default)]
+    pub extra_time: Option<[Duration; 2]>,
 }
 
 #[derive(Deserialize)]

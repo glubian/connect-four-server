@@ -212,6 +212,7 @@ impl Handler<IncomingPickPlayer> for Lobby {
             config,
             round,
             role,
+            extra_time,
         } = msg;
         let Some(player) = self.players.remove(&code) else { return; };
         let (p1, p2) = match role {
@@ -219,7 +220,7 @@ impl Handler<IncomingPickPlayer> for Lobby {
             Player::P2 => (self.host.clone(), player),
         };
         let cfg = Arc::clone(&self.cfg);
-        let game = actor::Game::new(game, config.into(), round, p1, p2, cfg);
+        let game = actor::Game::new(game, config.into(), round, extra_time, p1, p2, cfg);
         self.game = Some(game.start());
         debug!(
             "Player {} was chosen as {:?}, lobby shutting down",
