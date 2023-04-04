@@ -1,4 +1,3 @@
-use std::ops::{Index, IndexMut};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -16,6 +15,7 @@ use crate::game::{
 
 use crate::game_config::{GameConfig, PartialGameConfig};
 use crate::server::constants::TIME_PER_TURN_MIN;
+use crate::server::PlayerTuple;
 use crate::server::{actor, AppConfig};
 use actor::player::{self, AttachController, Disconnect, Disconnected, OutgoingMessage};
 
@@ -170,36 +170,6 @@ impl RestartRequest {
     }
 }
 
-/// Stores one type T per player. Can be accessed by passing `Player` as index.
-struct PlayerTuple<T>([T; 2]);
-
-impl<T> PlayerTuple<T> {
-    #[must_use]
-    const fn new(tuple: [T; 2]) -> Self {
-        Self(tuple)
-    }
-}
-
-impl<T> From<[T; 2]> for PlayerTuple<T> {
-    fn from(tuple: [T; 2]) -> Self {
-        Self(tuple)
-    }
-}
-
-impl<T> Index<Player> for PlayerTuple<T> {
-    type Output = T;
-
-    fn index(&self, player: Player) -> &Self::Output {
-        &self.0[player as usize]
-    }
-}
-
-impl<T> IndexMut<Player> for PlayerTuple<T> {
-    fn index_mut(&mut self, player: Player) -> &mut Self::Output {
-        &mut self.0[player as usize]
-    }
-}
-
 pub struct Game {
     stage: GameStage,
     round: u32,
@@ -216,8 +186,7 @@ impl Game {
         config: GameConfig,
         round: u32,
         extra_time: Option<[Duration; 2]>,
-        p1: Addr<actor::Player>,
-        p2: Addr<actor::Player>,
+        addrs: PlayerTuple<Addr<actor::Player>>,
         cfg: Arc<AppConfig>,
     ) -> Self {
         let stage: GameStage = if let Some(game) = game {
@@ -235,7 +204,7 @@ impl Game {
             stage,
             round,
             config,
-            addrs: PlayerTuple::new([p1, p2]),
+            addrs,
             restart_requests: PlayerTuple::new([None, None]),
             cfg,
         }
