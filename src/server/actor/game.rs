@@ -87,28 +87,37 @@ impl InGameStage {
         }
     }
 
-    fn new(p1_vote: bool, p2_vote: bool, rules: &GameConfig) -> Self {
+    #[must_use]
+    const fn new(
+        game: InternalGame,
+        extra_time: PlayerTuple<Duration>,
+        timeout: Option<TurnTimeout>,
+    ) -> Self {
+        Self {
+            game,
+            extra_time,
+            timeout,
+        }
+    }
+
+    #[must_use]
+    fn from_votes(p1_vote: bool, p2_vote: bool, rules: &GameConfig) -> Self {
         let starting_player = Self::starting_player(p1_vote, p2_vote);
         let rules = GameRules {
             starting_player,
             allow_draws: rules.allow_draws,
         };
-        let game = InternalGame::new(rules);
-        Self {
-            game,
-            extra_time: PlayerTuple::new([Duration::ZERO, Duration::ZERO]),
-            timeout: None,
-        }
+        InternalGame::new(rules).into()
     }
 }
 
 impl From<InternalGame> for InGameStage {
-    fn from(g: InternalGame) -> Self {
-        Self {
-            game: g,
-            extra_time: PlayerTuple::new([Duration::ZERO, Duration::ZERO]),
-            timeout: None,
-        }
+    fn from(game: InternalGame) -> Self {
+        Self::new(
+            game,
+            PlayerTuple::new([Duration::ZERO, Duration::ZERO]),
+            None,
+        )
     }
 }
 
@@ -190,12 +199,7 @@ impl Game {
         cfg: Arc<AppConfig>,
     ) -> Self {
         let stage: GameStage = if let Some(game) = game {
-            InGameStage {
-                game,
-                extra_time: extra_time.unwrap_or_default().into(),
-                timeout: None,
-            }
-            .into()
+            InGameStage::new(game, extra_time.unwrap_or_default().into(), None).into()
         } else {
             PlayerSelectionStage::new().into()
         };
@@ -479,7 +483,7 @@ impl Handler<PlayerSelectionVote> for Game {
             ..
         } = *stage
         {
-            self.stage = InGameStage::new(p1_vote, p2_vote, &self.config).into();
+            self.stage = InGameStage::from_votes(p1_vote, p2_vote, &self.config).into();
         }
 
         self.sync();
