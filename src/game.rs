@@ -132,6 +132,7 @@ fn get_turn_and_validate(
     }
 }
 
+/// Adds horizontal and vertical matches to the vector.
 fn get_horizontal_and_vertical_matches(matches: &mut Vec<GameMatch>, field: &GameField) {
     for i in 0..FIELD_SIZE {
         let mut v_len = 0;
@@ -175,6 +176,7 @@ fn get_horizontal_and_vertical_matches(matches: &mut Vec<GameMatch>, field: &Gam
     }
 }
 
+/// Adds diagonal matches to the vector.
 fn get_diagonal_matches(matches: &mut Vec<GameMatch>, field: &GameField) {
     const D: isize = (FIELD_SIZE - WIN_LEN) as isize;
     for d in -D..=D {

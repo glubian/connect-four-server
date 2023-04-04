@@ -230,6 +230,7 @@ impl Game {
         }
     }
 
+    /// Sends `OutgoingMessage::GameSync` to both players.
     fn sync(&self) {
         let round = self.round;
         let sync1 = self.stage.outgoing_message(round).into_shared().unwrap();
