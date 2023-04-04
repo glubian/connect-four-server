@@ -259,7 +259,9 @@ impl Game {
     fn sync_restart_request(&self, player: Player) {
         let req = &self.restart_requests[player];
         let player_req = req.as_ref().map(RestartRequest::to_outgoing);
-        let msg1 = OutgoingMessage::game_restart_request(player, player_req).into_shared().unwrap();
+        let msg1 = OutgoingMessage::game_restart_request(player, player_req)
+            .into_shared()
+            .unwrap();
         let msg2 = msg1.clone();
         self.addrs[P1].do_send(msg1);
         self.addrs[P2].do_send(msg2);
@@ -447,8 +449,12 @@ impl Actor for Game {
             return;
         }
 
-        let p1_role_msg = OutgoingMessage::full_game_setup(P1, &self.config).into_serialized().unwrap();
-        let p2_role_msg = OutgoingMessage::full_game_setup(P2, &self.config).into_serialized().unwrap();
+        let p1_role_msg = OutgoingMessage::full_game_setup(P1, &self.config)
+            .into_serialized()
+            .unwrap();
+        let p2_role_msg = OutgoingMessage::full_game_setup(P2, &self.config)
+            .into_serialized()
+            .unwrap();
         self.addrs[P1].do_send(p1_role_msg);
         self.addrs[P2].do_send(p2_role_msg);
         self.sync();
@@ -537,7 +543,8 @@ impl Handler<EndTurn> for Game {
             extra_time[player] = time_remaining;
         }
         if game.state().result.is_none() {
-            let duration = Self::get_timeout_duration(extra_time[game.state().player], &self.config);
+            let extra_time = extra_time[game.state().player];
+            let duration = Self::get_timeout_duration(extra_time, &self.config);
             Self::start_timeout(timeout, duration, ctx);
         }
         self.sync();
