@@ -75,6 +75,7 @@ impl Lobby {
         }
     }
 
+    #[must_use]
     fn get_id(&mut self) -> Option<u8> {
         if self.players.len() == self.cfg.max_players {
             return None;

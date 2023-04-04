@@ -239,6 +239,7 @@ fn get_diagonal_matches(matches: &mut Vec<GameMatch>, field: &GameField) {
     }
 }
 
+#[must_use]
 fn get_result(field: &GameField, moves: u32) -> Option<GameResult> {
     let mut matches = Vec::new();
 
@@ -298,6 +299,7 @@ impl Game {
     }
 
     /// Returns true if the most recent move was winning.
+    #[must_use]
     fn was_last_move_winning(&self) -> bool {
         let Some(x) = self.state.last_move else {
             return false;
@@ -313,6 +315,7 @@ impl Game {
     ///
     /// This function respects `GameRules`. It always runs `is_move_winning()`
     /// before `get_results()`.
+    #[must_use]
     fn get_result(&self, point: Option<(usize, usize)>) -> Option<GameResult> {
         let field = &self.field;
         let player = self.state.player;
@@ -395,6 +398,7 @@ impl Game {
         Err(EndTurnError::ColumnFilled)
     }
 
+    #[must_use]
     fn len_horizontal(&self, x: usize, y: usize, player: Player) -> usize {
         let mut len = 1;
 
@@ -415,6 +419,7 @@ impl Game {
         len
     }
 
+    #[must_use]
     fn len_vertical(&self, x: usize, y: usize, player: Player) -> usize {
         let mut len = 1;
 
@@ -435,6 +440,7 @@ impl Game {
         len
     }
 
+    #[must_use]
     fn len_diagonal_tl_br(&self, x: usize, y: usize, player: Player) -> usize {
         let mut len = 1;
         for d in 1..=(x.min(y)) {
@@ -454,6 +460,7 @@ impl Game {
         len
     }
 
+    #[must_use]
     fn len_diagonal_tr_bl(&self, x: usize, y: usize, player: Player) -> usize {
         let mut len = 1;
 
@@ -474,6 +481,7 @@ impl Game {
         len
     }
 
+    #[must_use]
     fn is_move_winning(&self, x: usize, y: usize, player: Player) -> bool {
         self.len_horizontal(x, y, player) >= WIN_LEN
             || self.len_vertical(x, y, player) >= WIN_LEN
@@ -498,6 +506,7 @@ impl Game {
 }
 
 impl GameState {
+    #[must_use]
     const fn fast_forward(starting_player: Player, turn: u32) -> Self {
         let mut res = Self::new(starting_player);
 
@@ -509,6 +518,7 @@ impl GameState {
         res
     }
 
+    #[must_use]
     const fn new(starting_player: Player) -> Self {
         Self {
             player: starting_player,

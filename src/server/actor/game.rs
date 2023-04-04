@@ -75,6 +75,7 @@ struct TurnTimeout {
 }
 
 impl InGameStage {
+    #[must_use]
     fn starting_player(p1_vote: bool, p2_vote: bool) -> Player {
         if p1_vote && !p2_vote {
             P1
@@ -127,6 +128,7 @@ enum GameStage {
 }
 
 impl GameStage {
+    #[must_use]
     fn is_game_over(&self) -> bool {
         if let Self::InGame(InGameStage { game, .. }) = self {
             game.state().result.is_some()
@@ -135,6 +137,7 @@ impl GameStage {
         }
     }
 
+    #[must_use]
     fn outgoing_message(&self, round: u32) -> OutgoingMessage {
         match self {
             Self::PlayerSelection(stage) => {
@@ -216,6 +219,7 @@ impl Game {
 
     /// Returns which player the address belongs to, or None if the address
     /// does not belong to either player in this instance.
+    #[must_use]
     fn get_player(&self, player_addr: &Addr<actor::Player>) -> Option<Player> {
         if &self.addrs[P1] == player_addr {
             Some(P1)
@@ -289,6 +293,7 @@ impl Game {
     }
 
     /// Creates a new restart request.
+    #[must_use]
     fn create_restart_request(
         duration: Duration,
         player: Player,
@@ -356,6 +361,7 @@ impl Game {
 
     /// Returns the amount of time the current turn should take, or `0`
     /// if timer is disabled.
+    #[must_use]
     fn get_timeout_duration(extra_time: Duration, config: &GameConfig) -> Duration {
         let GameConfig {
             time_per_turn,
