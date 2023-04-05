@@ -1,5 +1,3 @@
-use std::{error::Error, fmt};
-
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -67,69 +65,6 @@ pub enum EndTurnError {
     IndexOutOfBounds,
     GameOver,
     ColumnFilled,
-}
-
-/// Something went wrong in `Game::from_raw_data()`
-#[derive(Debug)]
-pub enum GameValidationError {
-    /// The difference between the amount of chips of the two players
-    /// is more than 1
-    ChipCount,
-    /// A chip defies gravity
-    Gravity,
-}
-
-impl fmt::Display for GameValidationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ChipCount => write!(f, "Chip count invalid"),
-            Self::Gravity => write!(f, "Failed gravity check"),
-        }
-    }
-}
-
-impl Error for GameValidationError {}
-
-fn is_chip_count_valid(starting_player: Player, p1: u32, p2: u32) -> bool {
-    match starting_player {
-        _ if p1 == p2 => true,
-        P1 => p1 == p2 + 1,
-        P2 => p2 == p1 + 1,
-    }
-}
-
-fn get_turn_and_validate(
-    field: &GameField,
-    starting_player: Player,
-) -> Result<u32, GameValidationError> {
-    let mut p1 = 0;
-    let mut p2 = 0;
-
-    for col in field {
-        let mut found = false;
-        for slot in col {
-            match slot {
-                Some(p) => {
-                    found = true;
-                    match p {
-                        P1 => p1 += 1,
-                        P2 => p2 += 1,
-                    };
-                }
-                None => {
-                    if found {
-                        return Err(GameValidationError::Gravity);
-                    }
-                }
-            }
-        }
-    }
-
-    if is_chip_count_valid(starting_player, p1, p2) {
-        Ok(p1 + p2)
-    } else {
-        Err(GameValidationError::ChipCount)
-    }
 }
 
 /// Adds horizontal and vertical matches to the vector.
@@ -279,18 +214,6 @@ fn get_result(field: &GameField, moves: u32) -> Option<GameResult> {
 }
 
 impl Game {
-    pub fn from_raw_data(rules: GameRules, field: GameField) -> Result<Self, GameValidationError> {
-        let turn = get_turn_and_validate(&field, rules.starting_player)?;
-        let mut state = GameState::fast_forward(rules.starting_player, turn);
-        state.result = get_result(&field, state.turn);
-
-        Ok(Self {
-            field,
-            state,
-            rules,
-        })
-    }
-
     #[must_use]
     pub const fn new(rules: GameRules) -> Self {
         Self {
@@ -509,18 +432,6 @@ impl Game {
 
 impl GameState {
     #[must_use]
-    const fn fast_forward(starting_player: Player, turn: u32) -> Self {
-        let mut res = Self::new(starting_player);
-
-        if turn % 2 == 0 {
-            res.player = res.player.other();
-        }
-
-        res.turn = turn;
-        res
-    }
-
-    #[must_use]
     const fn new(starting_player: Player) -> Self {
         Self {
             player: starting_player,
@@ -579,10 +490,6 @@ mod tests {
         game
     }
 
-    fn in_game(rules: GameRules) -> Game {
-        fast_forward_game(rules, &[4, 5, 4, 4])
-    }
-
     fn won_game_horizontal(rules: GameRules) -> Game {
         fast_forward_game(rules, &[4, 4, 5, 5, 6, 6, 7])
     }
@@ -635,50 +542,6 @@ mod tests {
         game.end_turn(Some(3)).unwrap();
         assert_eq!(game.state.turn, 1);
         assert_eq!(game.state.player, P2);
-    }
-
-    #[test]
-    fn validate_new_game() {
-        let field = EMPTY_FIELD;
-        let player = P1;
-        assert!(get_turn_and_validate(&field, player).is_ok());
-    }
-
-    #[test]
-    fn validate_in_game() {
-        let player = P1;
-        let rules = GameRules::default();
-        let field = in_game(rules).field;
-        assert!(get_turn_and_validate(&field, player).is_ok());
-    }
-
-    #[test]
-    fn validate_won_game() {
-        let player = P1;
-        let rules = GameRules::default();
-        let field = won_game_diagonal2(rules).field;
-        assert!(get_turn_and_validate(&field, player).is_ok());
-    }
-
-    #[test]
-    fn validate_gravity() {
-        let player = P1;
-        let rules = GameRules::default();
-        let mut field = won_game_horizontal(rules).field;
-        field[6][6] = None;
-        field[6][2] = Some(player);
-        assert!(get_turn_and_validate(&field, player).is_err());
-    }
-
-    #[test]
-    fn validate_corrupted_game() {
-        let player = P1;
-        let rules = GameRules::default();
-        let mut field = won_game_horizontal(rules).field;
-        field[6][6] = None;
-        field[0][6] = Some(player);
-        field[1][6] = Some(player);
-        assert!(get_turn_and_validate(&field, player).is_err());
     }
 
     #[test]
