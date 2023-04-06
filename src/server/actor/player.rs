@@ -433,7 +433,7 @@ impl Player {
                     return;
                 };
                 debug!("Received IncomingMessage::LobbyPickPlayer");
-                lobby.try_send(msg).unwrap();
+                lobby.do_send(msg);
             }
             IncomingMessage::GamePlayerSelectionVote(msg) => {
                 let Some(Right(game)) = &self.controller else {
@@ -441,11 +441,10 @@ impl Player {
                     return;
                 };
                 debug!("Received IncomingMessage::GamePlayerSelectionVote");
-                game.try_send(PlayerSelectionVote {
+                game.do_send(PlayerSelectionVote {
                     player: ctx.address(),
                     wants_to_start: msg.wants_to_start,
-                })
-                .unwrap();
+                });
             }
             IncomingMessage::GameEndTurn(IncomingEndTurn { turn, col }) => {
                 let Some(Right(game)) = &self.controller else {
@@ -453,12 +452,11 @@ impl Player {
                     return;
                 };
                 debug!("Received IncomingMessage::GameEndTurn");
-                game.try_send(EndTurn {
+                game.do_send(EndTurn {
                     player: ctx.address(),
                     turn,
                     col,
-                })
-                .unwrap();
+                });
             }
             IncomingMessage::GameRestart(IncomingRestart { partial }) => {
                 let Some(Right(game)) = &self.controller else {
@@ -466,11 +464,10 @@ impl Player {
                     return;
                 };
                 debug!("Received IncomingMessage::GameRestart");
-                game.try_send(Restart {
+                game.do_send(Restart {
                     addr: ctx.address(),
                     partial,
-                })
-                .unwrap();
+                });
             }
             IncomingMessage::GameRestartResponse { accepted } => {
                 let Some(Right(game)) = &self.controller else {
@@ -478,11 +475,10 @@ impl Player {
                     return;
                 };
                 debug!("Received IncomingMessage::GameRestartVote");
-                game.try_send(RestartResponse {
+                game.do_send(RestartResponse {
                     addr: ctx.address(),
                     accepted,
-                })
-                .unwrap();
+                });
             }
             IncomingMessage::Ping { sent } => {
                 let received = Utc::now().format(ISO_8601_TIMESTAMP).to_string();
