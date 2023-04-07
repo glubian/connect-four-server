@@ -305,6 +305,30 @@ impl QR {
 
 // Incoming messages
 
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+enum IncomingMessage {
+    LobbyPickPlayer(IncomingPickPlayer),
+    GamePlayerSelectionVote(IncomingPlayerSelectionVote),
+    GameEndTurn(IncomingEndTurn),
+    GameRestart(IncomingRestart),
+    GameRestartResponse { accepted: bool },
+    Ping { sent: f64 },
+}
+
+impl IncomingMessage {
+    fn variant_name(&self) -> &'static str {
+        match self {
+            Self::LobbyPickPlayer(_) => "lobbyPickPlayer",
+            Self::GamePlayerSelectionVote(_) => "gamePlayerSelectionVote",
+            Self::GameEndTurn(_) => "gameEndTurn",
+            Self::GameRestart(_) => "gameRestart",
+            Self::GameRestartResponse { .. } => "gameRestartResponse",
+            Self::Ping { .. } => "ping",
+        }
+    }
+}
+
 /// Contents of `IncomingMessage::LobbyPickPlayer`.
 #[derive(Message, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -348,30 +372,6 @@ struct IncomingRestart {
     /// Changes to the configuration, if any.
     #[serde(flatten)]
     partial: Option<PartialGameConfig>,
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-enum IncomingMessage {
-    LobbyPickPlayer(IncomingPickPlayer),
-    GamePlayerSelectionVote(IncomingPlayerSelectionVote),
-    GameEndTurn(IncomingEndTurn),
-    GameRestart(IncomingRestart),
-    GameRestartResponse { accepted: bool },
-    Ping { sent: f64 },
-}
-
-impl IncomingMessage {
-    fn variant_name(&self) -> &'static str {
-        match self {
-            Self::LobbyPickPlayer(_) => "lobbyPickPlayer",
-            Self::GamePlayerSelectionVote(_) => "gamePlayerSelectionVote",
-            Self::GameEndTurn(_) => "gameEndTurn",
-            Self::GameRestart(_) => "gameRestart",
-            Self::GameRestartResponse { .. } => "gameRestartResponse",
-            Self::Ping { .. } => "ping",
-        }
-    }
 }
 
 // Internal messages
