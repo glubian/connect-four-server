@@ -13,10 +13,11 @@ use crate::game::{
 };
 
 use crate::game_config::{GameConfig, PartialGameConfig};
-use crate::server::constants::TIME_PER_TURN_MIN;
 use crate::server::PlayerTuple;
 use crate::server::{actor, AppConfig};
 use actor::player::{self, AttachController, Disconnect, Disconnected, OutgoingMessage};
+
+const TIME_PER_TURN_MIN: Duration = Duration::from_secs(3);
 
 #[derive(Message)]
 #[rtype(result = "()")]
