@@ -395,7 +395,7 @@ pub enum Disconnect {
 }
 
 impl Disconnect {
-    fn as_str(&self) -> &str {
+    fn as_str(self) -> &'static str {
         match self {
             Self::ServerMaxLobbies => "serverMaxLobbies",
             Self::InviteInvalid => "inviteInvalid",
