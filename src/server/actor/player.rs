@@ -80,14 +80,34 @@ impl<'a> OutgoingMessage<'a> {
         OutgoingRestartRequest { player, req }.into()
     }
 
+    // These messages should always be sent. Serializing is the last moment they
+    // can be logged.
+
     /// Attempts to convert the message into a `SerializedOutgoingMessage`.
     pub fn into_serialized(self) -> Result<SerializedOutgoingMessage, serde_json::Error> {
+        debug!("Sending {} message (serialized)", self.variant_name());
         self.try_into()
     }
 
     /// Attempts to convert the message into a `SharedOutgoingMessage`.
     pub fn into_shared(self) -> Result<SharedOutgoingMessage, serde_json::Error> {
+        debug!("Sending {} message (shared)", self.variant_name());
         self.try_into()
+    }
+
+    /// Returns name of the variant which will be used in the `type` property
+    /// of the message.
+    fn variant_name(&self) -> &'static str {
+        match self {
+            Self::LobbyLink(_) => "lobbyLink",
+            Self::LobbySync { .. } => "lobbySync",
+            Self::LobbyCode { .. } => "lobbyCode",
+            Self::GameSetup(_) => "gameSetup",
+            Self::GamePlayerSelection(_) => "gamePlayerSelection",
+            Self::GameSync(_) => "gameSync",
+            Self::GameRestartRequest(_) => "gameRestartRequest",
+            Self::Pong { .. } => "pong",
+        }
     }
 }
 
@@ -341,6 +361,19 @@ enum IncomingMessage {
     Ping { sent: f64 },
 }
 
+impl IncomingMessage {
+    fn variant_name(&self) -> &'static str {
+        match self {
+            Self::LobbyPickPlayer(_) => "lobbyPickPlayer",
+            Self::GamePlayerSelectionVote(_) => "gamePlayerSelectionVote",
+            Self::GameEndTurn(_) => "gameEndTurn",
+            Self::GameRestart(_) => "gameRestart",
+            Self::GameRestartResponse { .. } => "gameRestartResponse",
+            Self::Ping { .. } => "ping",
+        }
+    }
+}
+
 // Internal messages
 
 #[derive(Message)]
@@ -453,21 +486,27 @@ impl Player {
 
         self.hb = Instant::now();
 
+        let variant_name = msg.variant_name();
+
+        #[allow(clippy::single_match_else)]
+        match msg {
+            IncomingMessage::Ping { .. } => (),
+            _ => debug!("Received {}", variant_name),
+        }
+
         match msg {
             IncomingMessage::LobbyPickPlayer(msg) => {
                 let Some(Left(lobby)) = &self.controller else {
-                    debug!("Received IncomingMessage::LobbyPickPlayer, but no controller is attached!");
+                    debug!("No controller to handle {}", variant_name);
                     return;
                 };
-                debug!("Received IncomingMessage::LobbyPickPlayer");
                 lobby.do_send(msg);
             }
             IncomingMessage::GamePlayerSelectionVote(msg) => {
                 let Some(Right(game)) = &self.controller else {
-                    debug!("Received IncomingMessage::GamePlayerSelectionVote, but no controller is attached!");
+                    debug!("No controller to handle {}", variant_name);
                     return;
                 };
-                debug!("Received IncomingMessage::GamePlayerSelectionVote");
                 game.do_send(PlayerSelectionVote {
                     player: ctx.address(),
                     wants_to_start: msg.wants_to_start,
@@ -475,10 +514,9 @@ impl Player {
             }
             IncomingMessage::GameEndTurn(IncomingEndTurn { turn, col }) => {
                 let Some(Right(game)) = &self.controller else {
-                    debug!("Received IncomingMessage::GameEndTurn, but no controller is attached!");
+                    debug!("No controller to handle {}", variant_name);
                     return;
                 };
-                debug!("Received IncomingMessage::GameEndTurn");
                 game.do_send(EndTurn {
                     player: ctx.address(),
                     turn,
@@ -487,10 +525,9 @@ impl Player {
             }
             IncomingMessage::GameRestart(IncomingRestart { partial }) => {
                 let Some(Right(game)) = &self.controller else {
-                    debug!("Received IncomingMessage::GameRestart, but no controller is attached!");
+                    debug!("No controller to handle {}", variant_name);
                     return;
                 };
-                debug!("Received IncomingMessage::GameRestart");
                 game.do_send(Restart {
                     addr: ctx.address(),
                     partial,
@@ -498,10 +535,9 @@ impl Player {
             }
             IncomingMessage::GameRestartResponse { accepted } => {
                 let Some(Right(game)) = &self.controller else {
-                    debug!("Received IncomingMessage::GameRestartVote, but no controller is attached!");
+                    debug!("No controller to handle {}", variant_name);
                     return;
                 };
-                debug!("Received IncomingMessage::GameRestartVote");
                 game.do_send(RestartResponse {
                     addr: ctx.address(),
                     accepted,
@@ -616,6 +652,5 @@ impl Handler<SharedOutgoingMessage> for Player {
 
     fn handle(&mut self, msg: SharedOutgoingMessage, ctx: &mut Self::Context) {
         ctx.text(msg.0.as_str());
-        debug!("Shared outgoing message sent");
     }
 }
