@@ -46,6 +46,7 @@ impl<'a> OutgoingMessage<'a> {
         OutgoingLobbyLink::new(uuid, cfg).into()
     }
 
+    /// Constructs a new `OutgoingMessage::GameSetup`, containing all fields.
     #[must_use]
     pub fn full_game_setup(role: game::Player, config: &'a GameConfig) -> Self {
         OutgoingGameSetup::new()
@@ -55,6 +56,7 @@ impl<'a> OutgoingMessage<'a> {
             .into()
     }
 
+    /// Returns an `OutgoingMessage::GameSetup` builder.
     #[must_use]
     pub const fn game_setup() -> OutgoingGameSetup<'a> {
         OutgoingGameSetup::new()
@@ -66,6 +68,7 @@ impl<'a> OutgoingMessage<'a> {
         OutgoingPlayerSelection { p1_voted, p2_voted }.into()
     }
 
+    /// Constructs a new `OutgoingMessage::GameSync`.
     #[must_use]
     pub fn game_sync(round: u32, game: &'a Game, timeout: Option<DateTime<Utc>>) -> Self {
         OutgoingGameSync::new(round, game, timeout).into()
@@ -88,6 +91,7 @@ impl<'a> OutgoingMessage<'a> {
     }
 }
 
+/// Contents of `OutgoingMessage::LobbyLink`.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OutgoingLobbyLink {
@@ -118,11 +122,15 @@ impl<'a> From<OutgoingLobbyLink> for OutgoingMessage<'a> {
     }
 }
 
+/// Contents of `OutgoingMessage::GameSetup` with builder functions for
+/// setting fields.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OutgoingGameSetup<'a> {
+    /// Tells the client which player controls it - `P1` (blue) or `P2` (red)
     #[serde(skip_serializing_if = "Option::is_none")]
     role: Option<game::Player>,
+    /// Changes the configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     config: Option<&'a GameConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -164,6 +172,7 @@ impl<'a> From<OutgoingGameSetup<'a>> for OutgoingMessage<'a> {
     }
 }
 
+/// Contents of `OutgoingMessage::PlayerSelection`.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OutgoingPlayerSelection {
@@ -177,11 +186,13 @@ impl<'a> From<OutgoingPlayerSelection> for OutgoingMessage<'a> {
     }
 }
 
+/// Contents of `OutgoingMessage::GameSync`.k
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OutgoingGameSync<'a> {
     round: u32,
     game: &'a Game,
+    /// ISO 8601 timestamp of when the turn will be ended automatically.
     timeout: Option<String>,
 }
 
@@ -238,13 +249,17 @@ impl<'a> RestartRequest<'a> {
     }
 }
 
+/// QR code representation sent over to the client.
 #[derive(Serialize, Default)]
 struct QR {
+    /// Base64-encoded PNG.
     img: String,
+    /// The number of modules per side.
     width: usize,
 }
 
 impl QR {
+    /// Attempts to generate a QR code with specified contents.
     fn generate(contents: &str) -> Result<Self, ()> {
         use image::{png::PngEncoder, ColorType, Luma};
         use qrcode::{EcLevel, QrCode};
@@ -270,35 +285,47 @@ impl QR {
 
 // Incoming messages
 
+/// Contents of `IncomingMessage::LobbyPickPlayer`.
 #[derive(Message, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[rtype(result = "()")]
 pub struct IncomingPickPlayer {
+    /// Player code.
     pub code: u8,
+    /// Role which should be assigned to the player.
     pub role: game::Player,
+    /// State of the local game, or `None` if the client is in player selection.
     pub game: Option<Game>,
+    /// Game configuration, any missing fields will be set to their default value.
     pub config: PartialGameConfig,
     pub round: u32,
+    /// In timed games, the extra time each player has in milliseconds.
     #[serde(with = "as_millis_optional_tuple", default)]
     pub extra_time: Option<[Duration; 2]>,
 }
 
+/// Contents of `IncomingMessage::GamePlayerSelectionVote`.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct IncomingPlayerSelectionVote {
     wants_to_start: bool,
 }
 
+/// Contents of `IncomingMessage::GameEndTurn`.
 #[derive(Deserialize)]
 struct IncomingEndTurn {
+    /// The turn the player wants to end.
     turn: u32,
+    /// Move the player wants to make, if any.
     #[serde(default)]
     col: Option<usize>,
 }
 
+/// Contents of `IncomingMessage::GameRestart`.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct IncomingRestart {
+    /// Changes to the configuration, if any.
     #[serde(flatten)]
     partial: Option<PartialGameConfig>,
 }
