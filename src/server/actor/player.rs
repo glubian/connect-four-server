@@ -2,7 +2,6 @@ use std::time::Duration;
 use std::{sync::Arc, time::Instant};
 
 use actix::{prelude::*, WeakAddr};
-use actix_web::Either;
 use actix_web_actors::ws::{self, CloseReason};
 use bytestring::ByteString;
 use chrono::{DateTime, Utc};
@@ -364,7 +363,13 @@ impl<'a> TryFrom<OutgoingMessage<'a>> for SharedOutgoingMessage {
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct AttachController(pub Either<Addr<actor::Lobby>, Addr<actor::Game>>);
+pub struct AttachController(pub PlayerController);
+
+/// Contains an address to the actor currently managing the connection.
+pub enum PlayerController {
+    Lobby(Addr<actor::Lobby>),
+    Game(Addr<actor::Game>),
+}
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -405,7 +410,7 @@ impl Disconnect {
 
 pub struct Player {
     hb: Instant,
-    controller: Option<Either<Addr<actor::Lobby>, Addr<actor::Game>>>,
+    controller: Option<PlayerController>,
     disconnected_by_controller: bool,
     cfg: Arc<AppConfig>,
 }
@@ -436,7 +441,7 @@ impl Player {
     }
 
     fn handle_text_message(&mut self, text: &ByteString, ctx: &mut ws::WebsocketContext<Self>) {
-        use Either::*;
+        use PlayerController::*;
 
         let Ok(msg) = serde_json::from_str::<IncomingMessage>(text) else {
             debug!("Failed to parse message!");
@@ -455,14 +460,14 @@ impl Player {
 
         match msg {
             IncomingMessage::LobbyPickPlayer(msg) => {
-                let Some(Left(lobby)) = &self.controller else {
+                let Some(Lobby(lobby)) = &self.controller else {
                     debug!("No controller to handle {}", variant_name);
                     return;
                 };
                 lobby.do_send(msg);
             }
             IncomingMessage::GamePlayerSelectionVote(msg) => {
-                let Some(Right(game)) = &self.controller else {
+                let Some(Game(game)) = &self.controller else {
                     debug!("No controller to handle {}", variant_name);
                     return;
                 };
@@ -472,7 +477,7 @@ impl Player {
                 });
             }
             IncomingMessage::GameEndTurn(IncomingEndTurn { turn, col }) => {
-                let Some(Right(game)) = &self.controller else {
+                let Some(Game(game)) = &self.controller else {
                     debug!("No controller to handle {}", variant_name);
                     return;
                 };
@@ -483,7 +488,7 @@ impl Player {
                 });
             }
             IncomingMessage::GameRestart(IncomingRestart { partial }) => {
-                let Some(Right(game)) = &self.controller else {
+                let Some(Game(game)) = &self.controller else {
                     debug!("No controller to handle {}", variant_name);
                     return;
                 };
@@ -493,7 +498,7 @@ impl Player {
                 });
             }
             IncomingMessage::GameRestartResponse { accepted } => {
-                let Some(Right(game)) = &self.controller else {
+                let Some(Game(game)) = &self.controller else {
                     debug!("No controller to handle {}", variant_name);
                     return;
                 };
@@ -524,7 +529,7 @@ impl Actor for Player {
     }
 
     fn stopped(&mut self, ctx: &mut Self::Context) {
-        use Either::*;
+        use PlayerController::*;
 
         if self.disconnected_by_controller {
             debug!("Shut down by controller");
@@ -534,8 +539,8 @@ impl Actor for Player {
         let weak_addr = ctx.address().downgrade();
 
         match &self.controller {
-            Some(Left(lobby)) => lobby.do_send(Disconnected(weak_addr)),
-            Some(Right(game)) => game.do_send(Disconnected(weak_addr)),
+            Some(Lobby(lobby)) => lobby.do_send(Disconnected(weak_addr)),
+            Some(Game(game)) => game.do_send(Disconnected(weak_addr)),
             None => {
                 debug!("Shut down, no controller was attached");
                 return;

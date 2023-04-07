@@ -5,7 +5,6 @@ use std::{
 };
 
 use actix::prelude::*;
-use actix_web::Either;
 use log::debug;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use uuid::Uuid;
@@ -18,6 +17,7 @@ use crate::{
             lobby_router::RemoveLobby,
             player::{
                 AttachController, Disconnect, Disconnected, IncomingPickPlayer, OutgoingMessage,
+                PlayerController,
             },
         },
         AppConfig,
@@ -119,7 +119,7 @@ impl Actor for Lobby {
     type Context = actix::Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        let msg = AttachController(Either::Left(ctx.address()));
+        let msg = AttachController(PlayerController::Lobby(ctx.address()));
         let Ok(()) = self.host.try_send(msg) else {
             debug!("Failed to attach controller to host, shutting down");
             ctx.stop();
@@ -167,7 +167,7 @@ impl Handler<ConnectPlayer> for Lobby {
             return;
         };
 
-        let Ok(()) = player.try_send(AttachController(Either::Left(ctx.address()))) else {
+        let Ok(()) = player.try_send(AttachController(PlayerController::Lobby(ctx.address()))) else {
             player.do_send(Disconnect::LobbyJoinError);
             debug!("Failed to attach controller to a player");
             return;

@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
-use actix_web::Either;
 use chrono::{DateTime, Utc};
 use log::debug;
 use rand::Rng;
@@ -424,8 +423,9 @@ impl Actor for Game {
     type Context = actix::Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        let res1 = self.addrs[P1].try_send(AttachController(Either::Right(ctx.address())));
-        let res2 = self.addrs[P2].try_send(AttachController(Either::Right(ctx.address())));
+        use player::PlayerController::Game;
+        let res1 = self.addrs[P1].try_send(AttachController(Game(ctx.address())));
+        let res2 = self.addrs[P2].try_send(AttachController(Game(ctx.address())));
         if res1.is_err() || res2.is_err() {
             // both controller must be registered successfully in order for WsGame to work properly
             debug!("Failed to attach controller, shutting down");
