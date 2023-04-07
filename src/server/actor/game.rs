@@ -253,9 +253,7 @@ impl Game {
 
     /// Sends `OutgoingMessage::GameSetup` containing the current configuration.
     fn sync_config(&self) {
-        let msg: OutgoingMessage = OutgoingMessage::game_setup()
-            .set_config(&self.config)
-            .into();
+        let msg = OutgoingMessage::game_setup(Some(&self.config), None);
         let msg1 = msg.into_shared().unwrap();
         let msg2 = msg1.clone();
         self.addrs[P1].do_send(msg1);
@@ -435,10 +433,10 @@ impl Actor for Game {
             return;
         }
 
-        let p1_role_msg = OutgoingMessage::full_game_setup(P1, &self.config)
+        let p1_role_msg = OutgoingMessage::game_setup(Some(&self.config), Some(P1))
             .into_serialized()
             .unwrap();
-        let p2_role_msg = OutgoingMessage::full_game_setup(P2, &self.config)
+        let p2_role_msg = OutgoingMessage::game_setup(Some(&self.config), Some(P2))
             .into_serialized()
             .unwrap();
         self.addrs[P1].do_send(p1_role_msg);

@@ -46,20 +46,10 @@ impl<'a> OutgoingMessage<'a> {
         OutgoingLobbyLink::new(uuid, cfg).into()
     }
 
-    /// Constructs a new `OutgoingMessage::GameSetup`, containing all fields.
-    #[must_use]
-    pub fn full_game_setup(role: game::Player, config: &'a GameConfig) -> Self {
-        OutgoingGameSetup::new()
-            .set_role(role)
-            .set_config(config)
-            .set_timestamp()
-            .into()
-    }
-
     /// Returns an `OutgoingMessage::GameSetup` builder.
     #[must_use]
-    pub const fn game_setup() -> OutgoingGameSetup<'a> {
-        OutgoingGameSetup::new()
+    pub fn game_setup(config: Option<&'a GameConfig>, role: Option<game::Player>) -> Self {
+        OutgoingGameSetup { config, role }.into()
     }
 
     /// Constructs a new `OutgoingMessage::GamePlayerSelection`.
@@ -147,43 +137,12 @@ impl<'a> From<OutgoingLobbyLink> for OutgoingMessage<'a> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OutgoingGameSetup<'a> {
-    /// Tells the client which player controls it - `P1` (blue) or `P2` (red)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    role: Option<game::Player>,
     /// Changes the configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     config: Option<&'a GameConfig>,
+    /// Tells the client which player controls it - `P1` (blue) or `P2` (red)
     #[serde(skip_serializing_if = "Option::is_none")]
-    timestamp: Option<String>,
-}
-
-impl<'a> OutgoingGameSetup<'a> {
-    #[must_use]
-    pub const fn new() -> Self {
-        Self {
-            role: None,
-            config: None,
-            timestamp: None,
-        }
-    }
-
-    #[must_use]
-    pub const fn set_role(mut self, role: game::Player) -> Self {
-        self.role = Some(role);
-        self
-    }
-
-    #[must_use]
-    pub const fn set_config(mut self, config: &'a GameConfig) -> Self {
-        self.config = Some(config);
-        self
-    }
-
-    #[must_use]
-    pub fn set_timestamp(mut self) -> Self {
-        self.timestamp = Some(Utc::now().format(ISO_8601_TIMESTAMP).to_string());
-        self
-    }
+    role: Option<game::Player>,
 }
 
 impl<'a> From<OutgoingGameSetup<'a>> for OutgoingMessage<'a> {
