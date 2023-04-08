@@ -191,13 +191,17 @@ impl Handler<Disconnected> for Lobby {
             return;
         }
 
-        if msg.0 == self.host.downgrade() {
+        let addr = msg.0.upgrade();
+
+        if !(self.host.connected() && addr.as_ref().map_or(true, |a| a != &self.host)) {
             debug!("Host has disconnected; lobby shutting down");
             ctx.stop();
             return;
         }
 
-        self.players.retain(|_, player| player.connected());
+        self.players
+            .retain(|_, player| player.connected() && addr.as_ref().map_or(true, |a| a != player));
+
         self.schedule_player_list_sync(ctx);
         debug!("Player left");
     }
