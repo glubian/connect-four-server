@@ -246,7 +246,7 @@ impl QR {
         let qr = QrCode::with_error_correction_level(contents, EcLevel::L).map_err(|_| ())?;
         let img_buf = qr
             .render::<Luma<u8>>()
-            .max_dimensions(200, 200)
+            .max_dimensions(0, 0)
             .quiet_zone(false)
             .build();
 
