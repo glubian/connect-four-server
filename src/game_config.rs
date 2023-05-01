@@ -2,15 +2,15 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use crate::server::serde::{as_secs, as_secs_optional};
+use crate::server::serde::{as_millis, as_millis_optional};
 
 /// A subset of `GameRules` used for starting a new game.
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GameConfig {
-    #[serde(with = "as_secs")]
+    #[serde(with = "as_millis")]
     pub time_per_turn: Duration,
-    #[serde(with = "as_secs")]
+    #[serde(with = "as_millis")]
     pub time_cap: Duration,
     pub allow_draws: bool,
 }
@@ -19,9 +19,9 @@ pub struct GameConfig {
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PartialGameConfig {
-    #[serde(with = "as_secs_optional", skip_serializing_if = "Option::is_none")]
+    #[serde(with = "as_millis_optional", skip_serializing_if = "Option::is_none")]
     pub time_per_turn: Option<Duration>,
-    #[serde(with = "as_secs_optional", skip_serializing_if = "Option::is_none")]
+    #[serde(with = "as_millis_optional", skip_serializing_if = "Option::is_none")]
     pub time_cap: Option<Duration>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_draws: Option<bool>,
