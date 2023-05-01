@@ -104,6 +104,7 @@ impl<'a> OutgoingMessage<'a> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OutgoingLobbyLink {
+    /// Lobby ID.
     lobby: String,
     qr_code: QR,
 }
@@ -136,7 +137,7 @@ impl<'a> From<OutgoingLobbyLink> for OutgoingMessage<'a> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OutgoingGameSetup<'a> {
-    /// Changes the configuration.
+    /// Game configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     config: Option<&'a GameConfig>,
     /// Tells the client which player controls it - `P1` (blue) or `P2` (red)
@@ -164,7 +165,7 @@ impl<'a> From<OutgoingPlayerSelection> for OutgoingMessage<'a> {
     }
 }
 
-/// Contents of `OutgoingMessage::GameSync`.k
+/// Contents of `OutgoingMessage::GameSync`.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OutgoingGameSync<'a> {
@@ -292,7 +293,7 @@ impl IncomingMessage {
 #[serde(rename_all = "camelCase")]
 #[rtype(result = "()")]
 pub struct IncomingPickPlayer {
-    /// Player code.
+    /// Player's code.
     pub code: u8,
     /// Role which should be assigned to the player.
     pub role: game::Player,
