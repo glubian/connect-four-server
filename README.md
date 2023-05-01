@@ -49,6 +49,11 @@ crate for more info.
 By default, the files are served from `./static`
 at `https://localhost:8080`.
 
+**NOTE:** If you are trying to start a remote game on `localhost` make sure to
+connect to the server from your browser beforehand and temporarily allow the
+connection. Redo this step if at some point you experience errors while
+trying to connect.
+
 ### Run a production build
 
 ```sh
