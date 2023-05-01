@@ -242,12 +242,16 @@ impl Game {
     /// before `get_results()`.
     #[must_use]
     fn get_result(&self, point: Option<(usize, usize)>) -> Option<GameResult> {
-        let field = &self.field;
-        let player = self.state.player;
-        let moves = self.state.moves;
+        let Self {
+            field,
+            state,
+            rules,
+        } = &self;
+        let player = state.player;
+        let moves = state.moves;
 
         let Some((x, y)) = point else {
-            return if self.rules.allow_draws && player == P2 && self.was_last_move_winning() {
+            return if rules.allow_draws && player == rules.starting_player.other() && self.was_last_move_winning() {
                 match get_result(field, moves) {
                     Some(res) => Some(res),
                     None => unreachable!(),
@@ -264,8 +268,8 @@ impl Game {
             };
         }
 
-        if self.rules.allow_draws {
-            if player == P1 {
+        if rules.allow_draws {
+            if player == rules.starting_player {
                 return None;
             }
 
@@ -477,6 +481,15 @@ impl Default for GameRules {
     }
 }
 
+impl From<Player> for GameWinner {
+    fn from(player: Player) -> Self {
+        match player {
+            P1 => Self::P1,
+            P2 => Self::P2,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -612,21 +625,28 @@ mod tests {
 
     #[test]
     fn rule_disallow_draws() {
-        let (game, res) = drawn_game(GameRules::default());
-        assert!(res.is_err());
-        assert!(game.state.result.is_some());
+        for starting_player in [P1, P2] {
+            let rules = GameRules {
+                starting_player,
+                allow_draws: false,
+            };
+            let (game, res) = drawn_game(rules);
+            assert!(res.is_err());
+            assert_eq!(game.state.result.map(|r| r.winner), Some(starting_player.into()));
+        }
     }
 
     #[test]
     fn rule_allow_draws() {
-        let rules = GameRules {
-            allow_draws: true,
-            ..GameRules::default()
-        };
-
-        let (game, res) = drawn_game(rules);
-        assert!(res.is_ok());
-        assert!(game.state.result.is_some());
+        for starting_player in [P1, P2] {
+            let rules = GameRules {
+                starting_player,
+                allow_draws: true,
+            };
+            let (game, res) = drawn_game(rules);
+            assert!(res.is_ok());
+            assert_eq!(game.state.result.map(|r| r.winner), Some(GameWinner::Draw));
+        }
     }
 
     #[test]
@@ -684,16 +704,6 @@ mod tests {
         assert!(game.is_move_winning(3, 5, P1));
         assert!(game.is_move_winning(4, 4, P1));
         assert!(game.is_move_winning(5, 3, P1));
-    }
-
-    #[test]
-    fn is_game_drawn_2() {
-        let mut game = won_game_2(GameRules {
-            starting_player: P1,
-            allow_draws: true,
-        });
-        assert!(game.end_turn(Some(5)).is_ok());
-        assert!(game.state.result.is_some());
     }
 
     #[test]
