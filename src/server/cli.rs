@@ -15,7 +15,6 @@ OPTIONS:
   -a --address <ADDRESS>                    Address to use
      --private-key-file <FILE>              Private key file
      --cert-chain-file <FILE>               Certificate chain file
-  -s --serve-from <DIR>                     Directory containing website files
      --max-lobbies <AMOUNT>                 Maximum lobbies
      --max-players <AMOUNT>                 Maximum players in a lobby (0-255)
      --heartbeat-interval <SECONDS>         Player ping interval in seconds, 0 to disable
@@ -72,7 +71,6 @@ impl AppArgs {
             address: exit_on_err(pargs.opt_value_from_str(["-a", "--address"])),
             private_key_file: exit_on_err(pargs.opt_value_from_str("--private-key-file")),
             certificate_chain_file: exit_on_err(pargs.opt_value_from_str("--cert-chain-file")),
-            serve_from: exit_on_err(pargs.opt_value_from_str(["-s", "--serve-from"])),
             max_lobbies: exit_on_err(pargs.opt_value_from_str("--max-lobbies")),
             max_players: exit_on_err(pargs.opt_value_from_str("--max-players")),
             heartbeat_interval: heartbeat_interval.map(Duration::from_secs_f64),

@@ -26,7 +26,6 @@ pub struct AppConfig {
     pub url_lobby_parameter: String,
     pub socket: u16,
     pub address: IpAddr,
-    pub serve_from: PathBuf,
     pub private_key_file: PathBuf,
     pub certificate_chain_file: PathBuf,
     pub max_lobbies: usize,
@@ -44,7 +43,6 @@ pub struct AppConfigPartial {
     pub url_lobby_parameter: Option<String>,
     pub socket: Option<u16>,
     pub address: Option<IpAddr>,
-    pub serve_from: Option<PathBuf>,
     pub private_key_file: Option<PathBuf>,
     pub certificate_chain_file: Option<PathBuf>,
     pub max_lobbies: Option<usize>,
@@ -82,7 +80,6 @@ impl AppConfig {
         apply_if_some!(self.url_lobby_parameter, cfg.url_lobby_parameter);
         apply_if_some!(self.socket, cfg.socket);
         apply_if_some!(self.address, cfg.address);
-        apply_if_some!(self.serve_from, cfg.serve_from);
         apply_if_some!(self.private_key_file, cfg.private_key_file);
         apply_if_some!(self.certificate_chain_file, cfg.certificate_chain_file);
         apply_if_some!(self.max_lobbies, cfg.max_lobbies);
@@ -100,7 +97,6 @@ impl Default for AppConfig {
             url_lobby_parameter: String::from("lobby"),
             socket: 8080,
             address: Ipv4Addr::new(127, 0, 0, 1).into(),
-            serve_from: PathBuf::from_str("./static").unwrap(),
             private_key_file: PathBuf::from_str("./certs/key.pem").unwrap(),
             certificate_chain_file: PathBuf::from_str("./certs/cert.pem").unwrap(),
             max_lobbies: 100,

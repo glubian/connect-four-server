@@ -9,7 +9,6 @@ use std::{
 };
 
 use actix::{Actor, Addr, MailboxError};
-use actix_files::{Files, NamedFile};
 use actix_web::{rt, web};
 use actix_web::{App, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws::WsResponseBuilder;
@@ -93,16 +92,10 @@ async fn main_actix(cfg: AppConfig) -> Result<(), ServerError> {
     let lobby_router = actor::LobbyRouter::new(Data::clone(&cfg).into_inner()).start();
     let cfg_1 = Data::clone(&cfg);
     HttpServer::new(move || {
-        let mut app = App::new()
+        App::new()
             .app_data(Data::new(lobby_router.clone()))
             .app_data(Data::clone(&cfg_1))
-            .route("/ws", web::get().to(ws_route));
-
-        if let Ok(index) = NamedFile::open(cfg_1.serve_from.join("index.html")) {
-            app = app.route("/", web::get().service(index));
-        }
-
-        app.service(Files::new("/", &cfg_1.serve_from).prefer_utf8(true))
+            .route("/", web::get().to(ws_route))
             .default_service(web::get().to(not_found))
     })
     .bind_openssl((cfg.address, cfg.socket), builder)
