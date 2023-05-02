@@ -26,6 +26,11 @@ use connect_four_server::server::actor::{
 };
 use connect_four_server::server::{AppArgs, AppConfig};
 
+/// Specifies the supported protocol version when requesting a connection.
+const URL_VERSION_PARAMETER: &str = "version";
+/// Supported protocol version.
+const PROTOCOL_VERSION: &str = "1";
+
 fn get_config() -> AppConfig {
     let args = match AppArgs::from_env() {
         Ok(args) => args,
@@ -115,11 +120,15 @@ async fn ws_route(
     cfg: Data<AppConfig>,
     router: Data<Addr<actor::LobbyRouter>>,
 ) -> Result<HttpResponse, actix_web::Error> {
+    let qs = QString::from(req.query_string());
+    let Some(PROTOCOL_VERSION) = qs.get(URL_VERSION_PARAMETER) else {
+        return Ok(HttpResponse::BadRequest().finish());
+    };
+
     let actor_cfg = Data::clone(&cfg).into_inner();
     let actor = actor::Player::new(actor_cfg);
     let (addr, res) = WsResponseBuilder::new(actor, &req, stream).start_with_addr()?;
 
-    let qs = QString::from(req.query_string());
     let id_str = qs.get(&cfg.url_lobby_parameter);
     if let Some(Ok(id)) = id_str.map(Uuid::from_str) {
         let msg = JoinLobby {
