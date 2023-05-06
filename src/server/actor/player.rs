@@ -234,6 +234,7 @@ struct QR {
 impl QR {
     /// Attempts to generate a QR code with specified contents.
     fn generate(contents: &str) -> Result<Self, ()> {
+        use base64::{engine::general_purpose, Engine as _};
         use image::{png::PngEncoder, ColorType, Luma};
         use qrcode::{EcLevel, QrCode};
         let mut img = Vec::new();
@@ -250,7 +251,7 @@ impl QR {
             .map_err(|_| ())?;
 
         Ok(Self {
-            img: base64::encode(&img),
+            img: general_purpose::STANDARD.encode(&img),
             width: qr.width(),
         })
     }
