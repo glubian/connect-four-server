@@ -2,7 +2,7 @@ use std::{path::PathBuf, time::Duration};
 
 use super::config::AppConfigPartial;
 
-const VERSION: &str = "connect-four-server, version 1.0.0";
+const VERSION: &str = "connect-four-server, version 1.1.0";
 
 const HELP: &str = "\
 USAGE: 
