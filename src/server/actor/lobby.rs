@@ -9,19 +9,13 @@ use log::debug;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use uuid::Uuid;
 
-use crate::{
-    game::Player,
-    server::{
-        actor::{
-            self,
-            lobby_router::RemoveLobby,
-            player::{
-                AttachController, Disconnect, Disconnected, IncomingPickPlayer, OutgoingMessage,
-                PlayerController,
-            },
-        },
-        AppConfig,
-    },
+use crate::game::Player;
+use crate::server::actor::{self, player};
+use crate::server::AppConfig;
+use actor::lobby_router::RemoveLobby;
+use player::{
+    AttachController, Disconnect, Disconnected, IncomingPickPlayer, OutgoingMessage,
+    PlayerController,
 };
 
 const PLAYER_LIST_SYNC_DEBOUNCE: Duration = Duration::from_secs(1);

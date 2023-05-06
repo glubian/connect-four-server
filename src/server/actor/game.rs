@@ -6,16 +6,12 @@ use chrono::{DateTime, Utc};
 use log::debug;
 use rand::Rng;
 
-use crate::game::Game as InternalGame;
-use crate::game::{
-    GameRules,
-    Player::{self, P1, P2},
-};
-
+use crate::game::{Game as InternalGame, GameRules, Player};
 use crate::game_config::{GameConfig, PartialGameConfig};
 use crate::server::PlayerTuple;
 use crate::server::{actor, AppConfig};
 use actor::player::{self, AttachController, Disconnect, Disconnected, OutgoingMessage};
+use Player::{P1, P2};
 
 const TIME_PER_TURN_MIN: Duration = Duration::from_secs(3);
 

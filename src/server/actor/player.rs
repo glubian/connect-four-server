@@ -11,15 +11,9 @@ use uuid::Uuid;
 
 use crate::game::{self, Game};
 use crate::game_config::{GameConfig, PartialGameConfig};
-use crate::server::actor::game::{PlayerSelectionVote, RestartResponse};
 use crate::server::serde::as_millis_optional_tuple;
-use crate::server::{
-    actor::{
-        self,
-        game::{EndTurn, Restart},
-    },
-    config::AppConfig,
-};
+use crate::server::{actor, AppConfig};
+use actor::game::{EndTurn, PlayerSelectionVote, Restart, RestartResponse};
 
 const ISO_8601_TIMESTAMP: &str = "%Y-%m-%dT%H:%M:%S%.3fZ";
 

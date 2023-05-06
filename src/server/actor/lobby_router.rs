@@ -4,14 +4,9 @@ use actix::prelude::*;
 use log::debug;
 use uuid::Uuid;
 
-use crate::server::{
-    actor::{
-        self,
-        lobby::{ConnectPlayer, Shutdown},
-        player::Disconnect,
-    },
-    AppConfig,
-};
+use crate::server::{actor, AppConfig};
+use actor::lobby::{ConnectPlayer, Shutdown};
+use actor::player::Disconnect;
 
 #[derive(Message)]
 #[rtype(result = "()")]

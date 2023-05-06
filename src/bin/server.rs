@@ -19,12 +19,9 @@ use uuid::Uuid;
 
 use web::Data;
 
-use connect_four_server::server::actor::{
-    self,
-    lobby_router::{CreateLobby, JoinLobby},
-    player::Disconnect,
-};
-use connect_four_server::server::{AppArgs, AppConfig};
+use actor::lobby_router::{CreateLobby, JoinLobby};
+use actor::player::Disconnect;
+use connect_four_server::server::{actor, AppArgs, AppConfig};
 
 /// Specifies the supported protocol version when requesting a connection.
 const URL_VERSION_PARAMETER: &str = "version";
