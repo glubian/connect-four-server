@@ -1,12 +1,10 @@
 # Connect Four Server
 
-Play connect four remotely.
-
 This server hosts and provides remote play functionality for
-[Connect Four website](https://github.com/glubian/connect-four).
+[connect four website](https://github.com/glubian/connect-four).
 
 
-# Development setup
+# Setup
 
 You will need to have [Rust](https://www.rust-lang.org/learn/get-started)
 installed.
@@ -17,8 +15,22 @@ Clone the repository:
 git clone 'https://github.com/glubian/connect-four-server.git'
 ```
 
-Since this server uses HTTPS, you will need to generate an SSL certificate
-for development. By default, the server will look for `./certs/key.pem` and
+Build the executable:
+
+```sh
+# for development
+cargo build --bin server
+
+# for production
+cargo build --bin server --release
+```
+
+You can find compiled binaries inside `target` directory.
+
+## Development
+
+Since this server uses HTTPS, you will need to generate an SSL certificate. 
+By default, the server will look for `./certs/key.pem` and
 `./certs/cert.pem`:
 
 ```sh
@@ -33,7 +45,25 @@ openssl req -x509 \
             -subj '/CN=localhost'
 ```
 
-...and that's it! Cargo will handle everything else for you.
+Run this to compile and run the server in development mode:
+
+```sh
+RUST_LOG=connect_four_server=debug cargo run --bin server
+```
+
+Connecting to the server on `localhost` from the website requires these
+few steps:
+
+1. Connect to the server in your browser using HTTPS. The server is hosted at 
+   `https://localhost:8080` by default.
+2. You might see a warning that the connection is unsecure, press the button to
+   temporarily allow connections. This is fine as the server is running locally
+   and no data ever leaves your computer.
+3. If everything works, you should see HTTP error 400 (Bad Request), as the 
+   server expects only WebSocket connection requests.
+
+**IMPORTANT:** Repeat these steps if at some point you get errors while trying
+to connect.
 
 ## Cargo commands
 
@@ -43,16 +73,9 @@ openssl req -x509 \
 RUST_LOG=connect_four_server=debug cargo run --bin server
 ```
 
-`RUST_LOG` controls logging, see the [log](https://docs.rs/log/latest/log/)
+`RUST_LOG` controls logging, see the 
+[env_logger](https://docs.rs/env_logger/0.10.0/env_logger/#enabling-logging)
 crate for more info.
-
-By default, the files are served from `./static`
-at `https://localhost:8080`.
-
-**NOTE:** If you are trying to start a remote game on `localhost` make sure to
-connect to the server from your browser beforehand and temporarily allow the
-connection. Redo this step if at some point you experience errors while
-trying to connect.
 
 ### Run a production build
 
@@ -86,8 +109,7 @@ The code is in `src/bin/cli.rs`.
 
 By default, the server should work well for development purposes:
 
-- Hosts files from `./static` directory at `https://localhost:8080`
-- Accepts WebSocket connections at `wss://localhost:8080/ws`
+- Accepts WebSocket connections at `wss://localhost:8080`
 - Looks for private key file under `./certs/key.pem`
 - Looks for certificate chain file under `./certs/cert.pem`
 - Hosts up to 100 concurrent lobbies, each can hold up to 20 players
@@ -172,9 +194,6 @@ url_base = "https://yourdomain/"
 # configure which address and socket to use
 address = "192.168.0.101"
 socket = 443
-
-# set this to your hosting directory
-serve_from = "./static"
 
 # point these to your certificate files
 private_key_file = "./certs/key.pem"
