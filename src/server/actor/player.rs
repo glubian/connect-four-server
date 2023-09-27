@@ -10,9 +10,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::game::{self, Game};
-use crate::game_config::{GameConfig, PartialGameConfig};
 use crate::server::serde::as_millis_optional_tuple;
-use crate::server::{actor, AppConfig};
+use crate::server::{actor, AppConfig, GameConfig, PartialGameConfig};
 use actor::game::{EndTurn, PlayerSelectionVote, Restart, RestartResponse};
 
 const ISO_8601_TIMESTAMP: &str = "%Y-%m-%dT%H:%M:%S%.3fZ";
@@ -506,7 +505,8 @@ impl Player {
             IncomingMessage::Ping { sent } => {
                 let received = Utc::now().format(ISO_8601_TIMESTAMP).to_string();
                 // Fail silently just to be safe
-                let Ok(msg) = serde_json::to_string(&OutgoingMessage::Pong { sent, received }) else {
+                let Ok(msg) = serde_json::to_string(&OutgoingMessage::Pong { sent, received })
+                else {
                     debug!("Failed to serialize message");
                     return;
                 };

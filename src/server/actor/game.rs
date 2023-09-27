@@ -7,9 +7,7 @@ use log::debug;
 use rand::Rng;
 
 use crate::game::{Game as InternalGame, GameRules, Player};
-use crate::game_config::{GameConfig, PartialGameConfig};
-use crate::server::PlayerTuple;
-use crate::server::{actor, AppConfig};
+use crate::server::{actor, AppConfig, GameConfig, PartialGameConfig, PlayerTuple};
 use actor::player::{self, AttachController, Disconnect, Disconnected, OutgoingMessage};
 use Player::{P1, P2};
 
@@ -258,7 +256,9 @@ impl Game {
 
     /// Applies configuration from the restart request.
     fn accept_restart_request(&mut self, player: Player, ctx: &mut Context<Self>) {
-        let Some(req) = self.restart_requests[player].take() else { return };
+        let Some(req) = self.restart_requests[player].take() else {
+            return;
+        };
         self.dismiss_duplicate_restart_requests(ctx);
         ctx.cancel_future(req.handle);
         if let Some(config) = req.config {
@@ -270,7 +270,9 @@ impl Game {
 
     /// Rejects the request to restart the game.
     fn reject_restart_request(&mut self, player: Player, ctx: &mut Context<Self>) {
-        let Some(req) = self.restart_requests[player].take() else { return };
+        let Some(req) = self.restart_requests[player].take() else {
+            return;
+        };
         ctx.cancel_future(req.handle);
         self.sync_restart_request(player);
     }
@@ -312,7 +314,9 @@ impl Game {
     /// Dismisses restart requests that do not change the current config.
     fn dismiss_duplicate_restart_requests(&mut self, ctx: &mut Context<Self>) {
         for player in [P1, P2] {
-            let Some(req) = self.restart_requests[player].as_ref() else { continue };
+            let Some(req) = self.restart_requests[player].as_ref() else {
+                continue;
+            };
             let req_config = req.config.as_ref();
             if req_config.map_or(false, |c| c == &self.config) {
                 let req = self.restart_requests[player].take().unwrap();
@@ -510,8 +514,9 @@ impl Handler<EndTurn> for Game {
         let GameStage::InGame(InGameStage {
             game,
             extra_time,
-            timeout
-        }) = &mut self.stage else {
+            timeout,
+        }) = &mut self.stage
+        else {
             return;
         };
 
